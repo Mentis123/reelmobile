@@ -1,0 +1,44 @@
+export type DevChecklistItem = {
+  id: string;
+  text: string;
+};
+
+export type DevChecklist = {
+  milestone: 'm0' | 'm1';
+  title: string;
+  items: DevChecklistItem[];
+};
+
+export const checklists: Record<DevChecklist['milestone'], DevChecklist> = {
+  m0: {
+    milestone: 'm0',
+    title: 'M0 shell gate',
+    items: [
+      { id: 'home-loads', text: 'Laptop loads / and shows Reel Mobile with Tap to begin.' },
+      { id: 'game-loads', text: 'Mobile loads /game via the QR code.' },
+      { id: 'dev-qr', text: '/dev shows local network URL, QR code, and current candidate tag.' },
+      { id: 'routes', text: '/game and /tune routes exist without errors.' },
+      { id: 'vercel', text: 'Vercel deploy succeeds and is reachable on phone.' }
+    ]
+  },
+  m1: {
+    milestone: 'm1',
+    title: 'M1 vertical slice real-iPhone gate',
+    items: [
+      { id: 'intent', text: "Within 10 seconds of tapping in, do I understand what I'm supposed to do?" },
+      { id: 'cast', text: 'Within 3 seconds of trying, can I successfully cast?' },
+      { id: 'cue', text: 'Do I see at least one ambiguous fish-like cue within 15 seconds?' },
+      { id: 'reaction', text: 'When my lure splashes near a cue, does something react believably?' },
+      { id: 'bite', text: 'Does the bite moment register clearly through audio and visual feedback?' },
+      { id: 'hook', text: 'When I successfully hook, does it feel decisive?' },
+      { id: 'tension', text: 'During the fight, does line tension communicate through the line itself?' },
+      { id: 'failure', text: 'Does at least one failure mode feel learnable rather than buggy?' },
+      { id: 'story', text: 'Does the result screen tell a tiny story rather than show stats?' },
+      { id: 'repeat', text: 'After one full cycle, do I want to cast again?' }
+    ]
+  }
+};
+
+export function getChecklist(milestone: string): DevChecklist {
+  return milestone === 'm1' ? checklists.m1 : checklists.m0;
+}
