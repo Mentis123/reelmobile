@@ -42,6 +42,7 @@ type Runtime = {
   focusUntil: number;
   focusCooldownUntil: number;
   lateHookUntil: number;
+  hookJerkUntil: number;
   nextRealCueAt: number;
   nextFalseCueAt: number;
   nextStruggleRippleAt: number;
@@ -64,11 +65,8 @@ type Ripple = {
 };
 
 type AimPreview = {
-  startX: number;
-  startY: number;
-  currentX: number;
-  currentY: number;
   power: number;
+  target: Vec2;
 };
 
 type ViewportSize = {
@@ -255,15 +253,15 @@ export function GameClient() {
     }
 
     if (runtime.current.state.kind === 'scouting' || runtime.current.state.kind === 'lure_idle') {
-      const power = castPower(event.clientX, event.clientY, event.clientX, event.clientY);
+      const cast = computeCast(event.clientX, event.clientY, event.clientX, event.clientY);
       runtime.current.state = {
         kind: 'aiming',
         startPx: { x: event.clientX, z: event.clientY },
         currentPx: { x: event.clientX, z: event.clientY },
-        power
+        power: cast.power
       };
       setGameState(runtime.current.state);
-      setAimPreview({ startX: event.clientX, startY: event.clientY, currentX: event.clientX, currentY: event.clientY, power });
+      setAimPreview({ power: cast.power, target: cast.target });
     }
   };
 
@@ -276,14 +274,14 @@ export function GameClient() {
 
     pointer.x = event.clientX;
     pointer.y = event.clientY;
-    const power = castPower(pointer.startX, pointer.startY, pointer.x, pointer.y);
+    const cast = computeCast(pointer.startX, pointer.startY, pointer.x, pointer.y);
     runtime.current.state = {
       ...runtime.current.state,
       currentPx: { x: pointer.x, z: pointer.y },
-      power
+      power: cast.power
     };
     setGameState(runtime.current.state);
-    setAimPreview({ startX: pointer.startX, startY: pointer.startY, currentX: pointer.x, currentY: pointer.y, power });
+    setAimPreview({ power: cast.power, target: cast.target });
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -303,6 +301,9 @@ export function GameClient() {
     if (runtime.current.state.kind === 'bite_window') {
       runtime.current.fish.state = { kind: 'hooked', stamina: TUNING.fish.hookedInitialStamina, rage: runtime.current.rng() };
       runtime.current.tension = TUNING.tension.hookedInitialTension;
+      runtime.current.hookJerkUntil = performance.now() + TUNING.timing.hookJerkMs;
+      runtime.current.lureMovedUntil = performance.now() + TUNING.timing.hookJerkMs;
+      runtime.current.lureFlashUntil = performance.now() + TUNING.timing.hookJerkMs;
       runtime.current.state = {
         kind: 'hooked',
         hookedAt: Date.now(),
@@ -313,6 +314,8 @@ export function GameClient() {
       };
       track({ type: 'hook_attempt', result: 'success' });
       audio.current.hooksetThunk();
+      addRipple(runtime.current.lurePos, TUNING.lure.rippleRadiusOnTwitchM, false);
+      addRipple(runtime.current.fish.position, TUNING.lure.rippleRadiusOnImpactM, false);
       navigator.vibrate?.(TUNING.haptics.hookset);
       setGameState(runtime.current.state);
       setFishState(runtime.current.fish.state);
@@ -408,20 +411,23 @@ export function GameClient() {
   }
 
   const previewDots = useMemo(() => {
-    if (!aimPreview) {
+    if (!aimPreview || !viewport) {
       return [];
     }
+
+    const start = worldToScreen(TUNING.world.rodTip, viewport);
+    const end = worldToScreen(aimPreview.target, viewport);
 
     return Array.from({ length: TUNING.input.aimPreviewDots }, (_, index) => {
       const t = index / (TUNING.input.aimPreviewDots - 1);
       return {
         id: index,
-        x: lerp(aimPreview.startX, aimPreview.currentX, t),
-        y: lerp(aimPreview.startY, aimPreview.currentY - TUNING.input.aimPreviewLiftPx, t) - Math.sin(Math.PI * t) * TUNING.input.aimPreviewPowerPx * aimPreview.power,
+        x: lerp(start.x, end.x, t),
+        y: lerp(start.y, end.y, t) - Math.sin(Math.PI * t) * TUNING.input.aimPreviewPowerPx * aimPreview.power,
         scale: lerp(TUNING.input.aimPreviewDotMinScale, TUNING.input.aimPreviewDotMaxScale, t)
       };
     });
-  }, [aimPreview]);
+  }, [aimPreview, viewport]);
 
   const lineScreenPoints = useMemo(
     () => viewport ? linePoints.map((point) => worldToScreen(point, viewport)) : [],
@@ -432,11 +438,14 @@ export function GameClient() {
     : tension > TUNING.tension.tensionSafeHold
       ? TUNING.line.lineTautColour
       : TUNING.line.lineSlackColour;
-  const lineWidth = tension > TUNING.tension.nearSnapThreshold
+  const hookImpulse = gameState.kind === 'hooked'
+    ? Math.max(0, 1 - (Date.now() - gameState.hookedAt) / TUNING.timing.hookJerkMs)
+    : 0;
+  const lineWidth = (tension > TUNING.tension.nearSnapThreshold
     ? TUNING.line.lineSnapWidthPx
     : tension > TUNING.tension.tensionSafeHold
       ? TUNING.line.lineTautWidthPx
-      : TUNING.line.lineSlackWidthPx;
+      : TUNING.line.lineSlackWidthPx) + hookImpulse * TUNING.line.lineHookWidthBoostPx;
 
   const biteHaloPos = gameState.kind === 'bite_window' && viewport
     ? worldToScreen(gameState.lurePos, viewport)
@@ -495,7 +504,7 @@ export function GameClient() {
             strokeWidth={lineWidth}
           />
           <path
-            d={rodPathFor(tension, viewport)}
+            d={rodPathFor(tension, viewport, hookImpulse)}
             fill="none"
             stroke="var(--dock-warm)"
             strokeLinecap="round"
@@ -729,7 +738,20 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setPixe
     } else if (gameState.kind === 'lure_idle') {
       current.lureY = Math.max(TUNING.world.lureSinkDepthY, current.lureY - TUNING.lure.lureSinkRate * dt);
       setLureState(now < current.lureMovedUntil ? 'twitch' : 'sink');
+    } else if (gameState.kind === 'bite_window') {
+      const biteT = clamp((now - gameState.openedAt) / TUNING.lure.lureBiteTugDurationMs, 0, 1);
+      const tug = Math.sin(biteT * Math.PI * TUNING.lure.lureBiteTugPulses) * (1 - biteT) * TUNING.lure.lureBiteTugAmplitudeM;
+      current.lureY = TUNING.world.lureSinkDepthY + tug;
+      current.lurePos = lerpVec(gameState.lurePos, current.fish.position, TUNING.fish.personalityScalar);
+      setLureState('twitch');
     } else if (gameState.kind === 'hooked') {
+      const hookImpulse = hookImpulseFor(current, now);
+      if (hookImpulse > 0) {
+        current.lurePos = {
+          x: current.lurePos.x + (current.fish.position.x - current.lurePos.x) * hookImpulse * TUNING.fish.personalityScalar,
+          z: current.lurePos.z + TUNING.lure.lureHookJerkDistanceM * hookImpulse
+        };
+      }
       updateFight(current, dt, onResult, audio.current);
       if (current.tension > TUNING.tension.splashHighTension && now > current.nextStruggleRippleAt) {
         current.nextStruggleRippleAt = now + TUNING.haptics.tensionRepeatMs;
@@ -809,6 +831,25 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setPixe
       current.lureFlashUntil = openedAt + TUNING.fish.biteWindowMs + TUNING.fish.biteNoHookMs;
       current.lureMovedUntil = openedAt + TUNING.fish.biteWindowMs;
       current.lureY = TUNING.world.lureSinkDepthY;
+      setRipples((value) => [
+        ...value,
+        {
+          id: createId(),
+          pos: current.fish.position,
+          radius: TUNING.lure.rippleRadiusOnTwitchM,
+          createdAt: now,
+          durationMs: TUNING.fish.cueRippleDurationMs,
+          falseCue: false
+        },
+        {
+          id: createId(),
+          pos: current.lurePos,
+          radius: TUNING.lure.rippleRadiusOnTwitchM,
+          createdAt: now,
+          durationMs: TUNING.fish.cueRippleDurationMs,
+          falseCue: false
+        }
+      ]);
       audio.current.nibbleTick();
       navigator.vibrate?.(TUNING.haptics.nibbleTick);
       track({ type: 'bite_window_open' });
@@ -817,7 +858,15 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setPixe
 
     if (fishRef.current) {
       fishRef.current.position.set(current.fish.position.x, TUNING.world.fishDepthY, current.fish.position.z);
-      fishRef.current.scale.setScalar(current.fish.state.kind === 'commit' ? 1 + TUNING.fish.personalityScalar : 1);
+      fishRef.current.scale.set(
+        TUNING.world.fishVisualWidthM * (current.fish.state.kind === 'commit' ? 1 + TUNING.fish.personalityScalar : 1),
+        TUNING.world.fishVisualHeightM,
+        1
+      );
+      const material = fishRef.current.material as THREE.MeshBasicMaterial;
+      material.opacity = current.fish.state.kind === 'commit' || current.fish.state.kind === 'bite'
+        ? TUNING.world.fishCommitOpacity
+        : TUNING.world.fishCueOpacity;
     }
 
     if (lureRef.current) {
@@ -828,7 +877,7 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setPixe
       material.emissiveIntensity = flashing ? TUNING.audio.sfxGain : TUNING.lure.lureWobbleAmplitude;
     }
 
-    current.line = updateVerletLine(current.line, rodTipFor(current.tension), current.lurePos, dt, current.tension);
+    current.line = updateVerletLine(current.line, rodTipFor(current.tension, hookImpulseFor(current, now)), current.lurePos, dt, current.tension);
     setLinePoints(current.line.points.map((point) => point.pos));
     setFishState(current.fish.state);
     setTension(current.tension);
@@ -847,7 +896,7 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setPixe
       </mesh>
       <Dock />
       <mesh ref={fishRef} renderOrder={1} rotation={[-Math.PI / 2, 0, 0]} position={[TUNING.world.fishStart.x, TUNING.world.fishDepthY, TUNING.world.fishStart.z]}>
-        <circleGeometry args={[TUNING.world.fishVisualWidthM, TUNING.world.rippleSegments]} />
+        <circleGeometry args={[1, TUNING.world.rippleSegments]} />
         <meshBasicMaterial color="#0a0e10" transparent opacity={TUNING.world.fishCueOpacity} depthWrite={false} />
       </mesh>
       <mesh ref={lureRef} visible={false} position={[TUNING.world.lureStart.x, TUNING.world.lureSurfaceY, TUNING.world.lureStart.z]}>
@@ -921,8 +970,9 @@ function createRuntime(seed: string): Runtime {
     focusUntil: 0,
     focusCooldownUntil: 0,
     lateHookUntil: 0,
-    nextRealCueAt: TUNING.fish.cueRealEveryMs,
-    nextFalseCueAt: lerp(TUNING.fish.cueFalseMinMs, TUNING.fish.cueFalseMaxMs, rng()),
+    hookJerkUntil: 0,
+    nextRealCueAt: nowMs() + TUNING.fish.cueRealEveryMs,
+    nextFalseCueAt: nowMs() + lerp(TUNING.fish.cueFalseMinMs, TUNING.fish.cueFalseMaxMs, rng()),
     nextStruggleRippleAt: 0,
     restoring: false,
     minFps: TUNING.performance.fpsRecovery,
@@ -1045,11 +1095,6 @@ function updatePerformance(
   recordPerf(avg5, runtime.minFps);
 }
 
-function castPower(startX: number, startY: number, x: number, y: number): number {
-  const dist = Math.hypot(x - startX, y - startY) / TUNING.input.dragPowerPixels;
-  return clamp(dist, TUNING.input.castPowerMin, TUNING.input.castPowerMax);
-}
-
 function average(values: number[]): number {
   if (values.length === 0) {
     return 0;
@@ -1058,10 +1103,10 @@ function average(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function rodTipFor(tension: number): Vec2 {
+function rodTipFor(tension: number, hookImpulse = 0): Vec2 {
   return {
-    x: TUNING.world.rodTip.x - TUNING.world.rodBendMaxM * tension,
-    z: TUNING.world.rodTip.z + TUNING.world.rodBendMaxM * tension
+    x: TUNING.world.rodTip.x - TUNING.world.rodBendMaxM * (tension + hookImpulse),
+    z: TUNING.world.rodTip.z + TUNING.world.rodBendMaxM * (tension + hookImpulse)
   };
 }
 
@@ -1069,15 +1114,27 @@ function isEarlyHookAttempt(fishStateKind: string): boolean {
   return TUNING.fish.earlyHookStates.some((state) => state === fishStateKind);
 }
 
-function rodPathFor(tension: number, viewport: ViewportSize): string {
+function rodPathFor(tension: number, viewport: ViewportSize, hookImpulse: number): string {
   const butt = worldToScreen(TUNING.world.rodButt, viewport);
-  const tip = worldToScreen(rodTipFor(tension), viewport);
+  const tip = worldToScreen(rodTipFor(tension, hookImpulse), viewport);
   const control = {
     x: lerp(butt.x, tip.x, 0.55) - TUNING.world.rodBendMaxM * TUNING.ui.worldProjectScale * tension,
-    y: lerp(butt.y, tip.y, 0.55)
+    y: lerp(butt.y, tip.y, 0.55) - hookImpulse * TUNING.ui.hookJerkScreenPx
   };
 
   return `M ${butt.x} ${butt.y} Q ${control.x} ${control.y} ${tip.x} ${tip.y}`;
+}
+
+function hookImpulseFor(runtime: Runtime, now: number): number {
+  if (now >= runtime.hookJerkUntil) {
+    return 0;
+  }
+
+  return (runtime.hookJerkUntil - now) / TUNING.timing.hookJerkMs;
+}
+
+function nowMs(): number {
+  return typeof performance === 'undefined' ? 0 : performance.now();
 }
 
 function worldToScreen(point: Vec2, viewport: ViewportSize) {

@@ -31,6 +31,7 @@ export const TUNING = {
     fishVisualWidthM: 0.9,
     fishVisualHeightM: 0.28,
     fishCueOpacity: 0.42,
+    fishCommitOpacity: 0.62,
     falseCueOpacity: 0.24,
     rippleHeightM: 0.012,
     rippleSegments: 48,
@@ -68,6 +69,7 @@ export const TUNING = {
     lineSlackWidthPx: 1.2,
     lineTautWidthPx: 2,
     lineSnapWidthPx: 2.5,
+    lineHookWidthBoostPx: 1.3,
     rodBendMaxDeg: 30
   },
   lure: {
@@ -78,6 +80,10 @@ export const TUNING = {
     lureFlashDurationMs: 180,
     lureTwitchDistanceM: 0.34,
     lureTwitchDurationMs: 180,
+    lureBiteTugDurationMs: 620,
+    lureBiteTugAmplitudeM: 0.12,
+    lureBiteTugPulses: 4,
+    lureHookJerkDistanceM: 0.42,
     rippleRadiusOnImpactM: 0.55,
     rippleRadiusOnTwitchM: 0.28,
     twitchPanicThresholdMs: 250,
@@ -174,6 +180,12 @@ export const TUNING = {
     lineZipFrequencyHz: 200,
     reelClickMinIntervalMs: 70,
     reelClickMaxIntervalMs: 220,
+    reelClickGain: 0.11,
+    reelClickStartHz: 1800,
+    reelClickEndHz: 760,
+    lineStrainMinTension: 0.78,
+    lineStrainGain: 0.16,
+    lineStrainPitchRise: 1,
     ambientFilterHz: 200,
     ambientBufferSeconds: 1,
     impactSplashIntensity: 0.32,
@@ -204,6 +216,7 @@ export const TUNING = {
     worldProjectScale: 44,
     worldProjectOffsetXRatio: 0.5,
     worldProjectOffsetYRatio: 0.66,
+    hookJerkScreenPx: 22,
     reelHintTensionWarn: 0.72
   }
 } as const;

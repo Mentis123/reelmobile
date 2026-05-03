@@ -126,3 +126,59 @@ Append after every milestone. Format:
 **Next:**
 - STOP for human review on a real iPhone through `/dev` QR.
 - Human should use the 10-question Phase A checklist and create `v0.1-vertical-slice-approved` only if the real-iPhone test scores at least 8 of 10.
+
+---
+
+## Phase A human review feedback (2026-05-04)
+**Tested:**
+- URL: `https://reelmobile.vercel.app`
+- Device/browser: iPhone 16 Pro, iOS 18.7, Chrome on iOS.
+- Score: about 5/10 on the Phase A checklist.
+
+**Shipped:**
+- First-tap comprehension, casting, fish cue visibility, bite clarity, learnable failure, and story result are partially or fully working.
+- Latest tested build includes post-candidate remote fixes for bite/reel feedback, cast-again reset, sharper bite cue, surfaced fish shadow, and smaller bite halo.
+
+**Cut:**
+- No approval tag was created.
+- No Phase B work should begin.
+
+**Discovered:**
+- Fish cue is visible, but the fish shadow does not correlate with bite reality; lure-near-fish reaction feels disconnected.
+- Bite clarity is currently carried by explicit `Tap!` and red ring UI. Desired direction is less permanent training UI and more lure tugging/physical motion.
+- Hooking is legible because the tension HUD appears, but it does not yet feel decisive.
+- Fight tension reads mostly as HUD; line color shift is not enough to communicate load through the line itself.
+- High-tension/reel audio becomes staticky and unpleasant. Desired direction is clicky reeling noise that only escalates near peak tension.
+- The loop is not yet connected enough to feel like a lived fishing moment or strongly invite repeat casting.
+- Cast preview currently projects from the touch point instead of the rod/casting point.
+- Cast preview can imply dock-distance reach that the actual cast does not achieve, creating a mismatch between aim preview and landing result.
+
+**Next:**
+- Treat the next candidate as an M1 feel-repair pass, not Phase B.
+- Prioritize spatial truth: fish cue, lure, bite origin, reaction, and cast preview should describe the same underlying world state.
+- Prioritize physical feel over HUD: hook impact, lure tugging, line load, rod bend, and audio should communicate the loop before UI labels do.
+
+---
+
+## M1 feel-repair pass (2026-05-04)
+**Shipped:**
+- Synced local `main` to the Claude-fixed remote `main` before making new changes.
+- Cast preview now starts from the rod tip and ends at the same computed/clamped world target the lure will use on release.
+- Fish cue is now an oval shadow that grows more visible during commit/bite states.
+- Bite now creates paired fish/lure ripples and physically tugs the lure during the bite window.
+- Successful hook now adds a short rod/line jerk, lure jerk, and paired ripples to make the hookset feel more decisive.
+- Reel audio now uses softer click-led feedback, with line strain only rising near high tension instead of a harsh low-threshold sawtooth.
+- New feel constants were added to `src/game/tuning/tuning.ts`.
+
+**Cut:**
+- No Phase B work.
+- No approval tag.
+- No new candidate tag yet; this pass should deploy from `main` for another real-device feel review first.
+
+**Discovered:**
+- Running `pnpm typecheck` concurrently with `pnpm build` can race against regenerated `.next/types` and produce transient missing generated-file errors. Serial rerun after build passes.
+
+**Next:**
+- Test the deployed `main` again on iPhone 16 Pro / iOS 18.7 / Chrome on iOS against the same 10-question checklist.
+- Pay special attention to items 3, 4, 6, 7, 8, and 10.
+- If this feels closer, decide whether to tag a new `v0.1.x-*-candidate` for formal human review.

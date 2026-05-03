@@ -9,6 +9,7 @@ export class ProceduralAudio {
   private sfx: GainNode | null = null;
   private lineZip: { osc: OscillatorNode; gain: GainNode } | null = null;
   private reelTimer: number | null = null;
+  private reelLoopTension = 0;
 
   async unlock() {
     if (!this.ctx) {
@@ -76,11 +77,13 @@ export class ProceduralAudio {
       return;
     }
 
-    if (tension > TUNING.audio.lineZipMinTension) {
+    this.reelLoopTension = tension;
+
+    if (tension > TUNING.audio.lineStrainMinTension) {
       if (!this.lineZip) {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
-        osc.type = 'sawtooth';
+        osc.type = 'triangle';
         osc.frequency.value = TUNING.audio.lineZipFrequencyHz;
         gain.gain.value = 0;
         osc.connect(gain);
@@ -88,7 +91,8 @@ export class ProceduralAudio {
         osc.start();
         this.lineZip = { osc, gain };
       }
-      this.lineZip.gain.gain.setTargetAtTime((tension - TUNING.audio.lineZipMinTension) * TUNING.audio.sfxGain, this.ctx.currentTime, 0.03);
+      this.lineZip.osc.frequency.setTargetAtTime(TUNING.audio.lineZipFrequencyHz * (1 + tension * TUNING.audio.lineStrainPitchRise), this.ctx.currentTime, 0.03);
+      this.lineZip.gain.gain.setTargetAtTime((tension - TUNING.audio.lineStrainMinTension) * TUNING.audio.lineStrainGain, this.ctx.currentTime, 0.04);
     } else if (this.lineZip) {
       this.lineZip.gain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.03);
     }
@@ -115,8 +119,16 @@ export class ProceduralAudio {
   }
 
   private reelClickLoop() {
-    this.noiseBurst(TUNING.audio.twitchMs, TUNING.audio.sfxGain * 0.18, 'bandpass', 900, 700);
-    this.reelTimer = window.setTimeout(() => this.reelClickLoop(), TUNING.audio.reelClickMinIntervalMs);
+    const tensionFactor = Math.min(1, Math.max(0, this.reelLoopTension));
+    this.tone(
+      TUNING.audio.reelClickStartHz,
+      TUNING.audio.reelClickEndHz,
+      TUNING.audio.nibbleTickMs,
+      'square',
+      TUNING.audio.reelClickGain + tensionFactor * TUNING.audio.reelClickGain
+    );
+    const interval = TUNING.audio.reelClickMaxIntervalMs - (TUNING.audio.reelClickMaxIntervalMs - TUNING.audio.reelClickMinIntervalMs) * tensionFactor;
+    this.reelTimer = window.setTimeout(() => this.reelClickLoop(), interval);
   }
 
   private startAmbient() {
