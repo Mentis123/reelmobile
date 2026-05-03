@@ -42,7 +42,7 @@ export function failureStory(kind: string): string {
   }
 
   if (kind === 'escape') {
-    return 'It threw the hook. You let the line go slack.';
+    return 'You stopped reeling. The line went slack and the fish threw the hook.';
   }
 
   return 'The pond went quiet.';

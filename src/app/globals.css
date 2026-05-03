@@ -254,13 +254,121 @@ code {
 }
 
 .water-ripple {
-  border: 1px solid rgba(216, 212, 194, 0.72);
+  border: 2px solid rgba(200, 168, 92, 0.85);
   border-radius: 999px;
-  box-shadow: 0 0 10px rgba(216, 212, 194, 0.16);
+  box-shadow: 0 0 14px rgba(200, 168, 92, 0.32);
 }
 
 .water-ripple.false-cue {
-  border-color: rgba(216, 212, 194, 0.36);
+  border: 1px solid rgba(216, 212, 194, 0.3);
+  box-shadow: none;
+}
+
+.bite-halo {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 96px;
+  height: 96px;
+  margin: -48px 0 0 -48px;
+  border: 3px solid rgba(232, 84, 84, 0.95);
+  border-radius: 999px;
+  box-shadow: 0 0 18px rgba(232, 84, 84, 0.65);
+  pointer-events: none;
+  animation: biteHaloPulse 220ms ease-out infinite;
+}
+
+@keyframes biteHaloPulse {
+  0% {
+    transform: scale(0.55);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+.cue-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: max(18%, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(10, 14, 14, 0.78);
+  color: var(--moonlight);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.4rem;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.cue-prompt.tap {
+  color: #ffd6a8;
+  border: 2px solid rgba(232, 84, 84, 0.85);
+  box-shadow: 0 0 22px rgba(232, 84, 84, 0.55);
+  animation: cuePromptTap 320ms ease-in-out infinite alternate;
+}
+
+.cue-prompt.hold {
+  color: var(--ui-gold);
+  border: 1px solid rgba(200, 168, 92, 0.55);
+  animation: cuePromptHold 900ms ease-in-out infinite alternate;
+}
+
+.cue-prompt.ease {
+  color: #ffb0a8;
+  border: 2px solid rgba(232, 84, 84, 0.7);
+  box-shadow: 0 0 22px rgba(232, 84, 84, 0.45);
+}
+
+@keyframes cuePromptTap {
+  from { transform: translateX(-50%) scale(1); }
+  to   { transform: translateX(-50%) scale(1.08); }
+}
+
+@keyframes cuePromptHold {
+  from { opacity: 0.6; }
+  to   { opacity: 1; }
+}
+
+.tension-bar {
+  position: absolute;
+  right: max(12px, env(safe-area-inset-right));
+  top: 22%;
+  bottom: 28%;
+  width: 10px;
+  border-radius: 6px;
+  background: rgba(10, 14, 14, 0.55);
+  border: 1px solid rgba(200, 196, 178, 0.22);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.tension-bar-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to top, #d8d4c2 0%, #e8c878 55%, #c84848 100%);
+  border-radius: 6px;
+  transition: height 90ms linear;
+}
+
+.tension-bar-mark {
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  height: 2px;
+  background: rgba(200, 196, 178, 0.55);
+}
+
+.tension-bar-mark.danger {
+  background: rgba(232, 84, 84, 0.85);
 }
 
 .splash-gate {
