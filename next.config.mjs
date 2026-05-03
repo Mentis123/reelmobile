@@ -1,18 +1,9 @@
-import { execSync } from 'node:child_process';
-
 function currentCandidateTag() {
   if (process.env.NEXT_PUBLIC_REEL_CANDIDATE_TAG) {
     return process.env.NEXT_PUBLIC_REEL_CANDIDATE_TAG;
   }
 
-  try {
-    return execSync('git describe --tags --match "*-candidate" --abbrev=0', {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore']
-    }).trim();
-  } catch {
-    return 'v0.0-shell-candidate';
-  }
+  return 'v0.1-vertical-slice-candidate';
 }
 
 function currentMilestone(tag) {
