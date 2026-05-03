@@ -133,7 +133,7 @@ export function GameClient() {
     }
 
     const preventTouch = (event: TouchEvent) => {
-      if (event.target instanceof Element && event.target.closest('[data-testid="tap-to-begin"]')) {
+      if (event.target instanceof Element && event.target.closest('[data-testid="tap-to-begin"], [data-testid="result-card"]')) {
         return;
       }
 
@@ -576,9 +576,26 @@ export function GameClient() {
       )}
 
       {gameState.kind === 'result' ? (
-        <section className="result-card" data-testid="result-card" onClick={resetCast}>
+        <section
+          className="result-card"
+          data-testid="result-card"
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            resetCast();
+          }}
+          onClick={resetCast}
+        >
           <p>{gameState.storyText}</p>
-          <button type="button">Cast again.</button>
+          <button
+            type="button"
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              resetCast();
+            }}
+            onClick={resetCast}
+          >
+            Cast again.
+          </button>
         </section>
       ) : null}
 
@@ -790,17 +807,6 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setPixe
       current.lureFlashUntil = openedAt + TUNING.fish.biteWindowMs + TUNING.fish.biteNoHookMs;
       current.lureMovedUntil = openedAt + TUNING.fish.biteWindowMs;
       current.lureY = TUNING.world.lureSinkDepthY;
-      setRipples((value) => [
-        ...value,
-        {
-          id: createId(),
-          pos: current.lurePos,
-          radius: TUNING.lure.rippleRadiusOnImpactM,
-          createdAt: now,
-          durationMs: TUNING.fish.cueRippleDurationMs,
-          falseCue: false
-        }
-      ]);
       audio.current.nibbleTick();
       navigator.vibrate?.(TUNING.haptics.nibbleTick);
       track({ type: 'bite_window_open' });
@@ -833,14 +839,14 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setPixe
       <color attach="background" args={['#1a2b30']} />
       <ambientLight intensity={1.1} />
       <directionalLight position={[2.4, 5, 3]} intensity={1.7} />
-      <mesh ref={waterRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, TUNING.world.waterY, 0]}>
+      <mesh ref={waterRef} renderOrder={0} rotation={[-Math.PI / 2, 0, 0]} position={[0, TUNING.world.waterY, 0]}>
         <planeGeometry args={[TUNING.world.pondWidthM, TUNING.world.pondHeightM, TUNING.world.waterSegments, TUNING.world.waterSegments]} />
-        <meshStandardMaterial color="#2f4948" roughness={0.75} metalness={0.05} transparent opacity={0.94} />
+        <meshStandardMaterial color="#2f4948" roughness={0.75} metalness={0.05} transparent opacity={0.82} depthWrite={false} />
       </mesh>
       <Dock />
-      <mesh ref={fishRef} rotation={[-Math.PI / 2, 0, 0]} position={[TUNING.world.fishStart.x, TUNING.world.fishDepthY, TUNING.world.fishStart.z]}>
+      <mesh ref={fishRef} renderOrder={1} rotation={[-Math.PI / 2, 0, 0]} position={[TUNING.world.fishStart.x, TUNING.world.fishDepthY, TUNING.world.fishStart.z]}>
         <circleGeometry args={[TUNING.world.fishVisualWidthM, TUNING.world.rippleSegments]} />
-        <meshBasicMaterial color="#1a1a1a" transparent opacity={TUNING.world.fishCueOpacity} depthWrite={false} />
+        <meshBasicMaterial color="#0a0e10" transparent opacity={TUNING.world.fishCueOpacity} depthWrite={false} />
       </mesh>
       <mesh ref={lureRef} visible={false} position={[TUNING.world.lureStart.x, TUNING.world.lureSurfaceY, TUNING.world.lureStart.z]}>
         <sphereGeometry args={[TUNING.lure.lureRadiusM, 16, 12]} />
