@@ -268,6 +268,15 @@ code {
   position: absolute;
   left: 0;
   top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.bite-halo-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
   width: 44px;
   height: 44px;
   margin: -22px 0 0 -22px;
@@ -275,6 +284,7 @@ code {
   border-radius: 999px;
   box-shadow: 0 0 12px rgba(232, 84, 84, 0.75), inset 0 0 6px rgba(232, 84, 84, 0.35);
   pointer-events: none;
+  transform-origin: center;
   animation: biteHaloPulse 480ms ease-in-out infinite;
 }
 

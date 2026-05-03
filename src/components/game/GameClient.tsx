@@ -534,7 +534,9 @@ export function GameClient() {
         <span
           className="bite-halo"
           style={{ transform: `translate(${biteHaloPos.x}px, ${biteHaloPos.y}px)` }}
-        />
+        >
+          <span className="bite-halo-ring" />
+        </span>
       ) : null}
 
       {cuePrompt ? (
