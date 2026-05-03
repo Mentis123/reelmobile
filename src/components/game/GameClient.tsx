@@ -106,10 +106,12 @@ export function GameClient() {
   const setGameState = useGameStore((state) => state.setGameState);
   const setFishState = useGameStore((state) => state.setFishState);
   const setSeed = useGameStore((state) => state.setSeed);
+  const setReeling = useGameStore((state) => state.setReeling);
   const sessionStore = useSessionStore();
   const gameState = useGameStore((state) => state.gameState);
   const fishState = useGameStore((state) => state.fishState);
   const tension = useGameStore((state) => state.tension);
+  const reeling = useGameStore((state) => state.reeling);
   const lureState = useGameStore((state) => state.lureState);
   const debugMetrics = useGameStore((state) => state.debugMetrics);
   const glHandlersReady = useGameStore((state) => state.glHandlersReady);
@@ -212,8 +214,9 @@ export function GameClient() {
     runtime.current.state = { kind: 'result', outcome, storyText, shownAt: now, peakTension };
     runtime.current.reeling = false;
     audio.current.stopLoops();
+    setReeling(false);
     setGameState(runtime.current.state);
-  }, [sessionStore, setGameState]);
+  }, [sessionStore, setGameState, setReeling]);
 
   const resetCast = useCallback(() => {
     const nextRuntime = createRuntime(seed);
@@ -221,9 +224,10 @@ export function GameClient() {
     runtime.current = nextRuntime;
     setLinePoints([]);
     setRipples([]);
+    setReeling(false);
     setGameState(nextRuntime.state);
     setFishState(nextRuntime.fish.state);
-  }, [seed, setFishState, setGameState]);
+  }, [seed, setFishState, setGameState, setReeling]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!started || runtime.current.state.kind === 'splash') {
@@ -246,6 +250,7 @@ export function GameClient() {
 
     if (runtime.current.state.kind === 'hooked') {
       runtime.current.reeling = true;
+      setReeling(true);
       return;
     }
 
@@ -291,11 +296,13 @@ export function GameClient() {
 
     if (runtime.current.state.kind === 'hooked') {
       runtime.current.reeling = false;
+      setReeling(false);
       return;
     }
 
     if (runtime.current.state.kind === 'bite_window') {
       runtime.current.fish.state = { kind: 'hooked', stamina: TUNING.fish.hookedInitialStamina, rage: runtime.current.rng() };
+      runtime.current.tension = TUNING.tension.hookedInitialTension;
       runtime.current.state = {
         kind: 'hooked',
         hookedAt: Date.now(),
@@ -431,6 +438,19 @@ export function GameClient() {
       ? TUNING.line.lineTautWidthPx
       : TUNING.line.lineSlackWidthPx;
 
+  const biteHaloPos = gameState.kind === 'bite_window' && viewport
+    ? worldToScreen(gameState.lurePos, viewport)
+    : null;
+  const cuePrompt: { kind: 'tap' | 'hold' | 'ease'; text: string } | null =
+    gameState.kind === 'bite_window'
+      ? { kind: 'tap', text: 'Tap!' }
+      : gameState.kind === 'hooked' && tension > TUNING.ui.reelHintTensionWarn
+        ? { kind: 'ease', text: 'Ease off' }
+        : gameState.kind === 'hooked' && !reeling
+          ? { kind: 'hold', text: 'Hold to reel' }
+          : null;
+  const showTensionBar = gameState.kind === 'hooked';
+
   return (
     <main
       ref={rootRef}
@@ -509,6 +529,36 @@ export function GameClient() {
           />
         );
       }) : null}
+
+      {biteHaloPos ? (
+        <span
+          className="bite-halo"
+          style={{ transform: `translate(${biteHaloPos.x}px, ${biteHaloPos.y}px)` }}
+        />
+      ) : null}
+
+      {cuePrompt ? (
+        <div className={`cue-prompt ${cuePrompt.kind}`} data-testid="cue-prompt">
+          {cuePrompt.text}
+        </div>
+      ) : null}
+
+      {showTensionBar ? (
+        <div className="tension-bar" aria-hidden="true">
+          <div
+            className="tension-bar-mark danger"
+            style={{ bottom: `${TUNING.tension.nearSnapThreshold * 100}%` }}
+          />
+          <div
+            className="tension-bar-mark"
+            style={{ bottom: `${TUNING.tension.tensionSafeHold * 100}%` }}
+          />
+          <div
+            className="tension-bar-fill"
+            style={{ height: `${Math.min(1, Math.max(0, tension)) * 100}%` }}
+          />
+        </div>
+      ) : null}
 
       {started ? null : (
         <button
@@ -737,6 +787,20 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setPixe
         closesAt: openedAt + TUNING.fish.biteWindowMs,
         lurePos: current.lurePos
       };
+      current.lureFlashUntil = openedAt + TUNING.fish.biteWindowMs + TUNING.fish.biteNoHookMs;
+      current.lureMovedUntil = openedAt + TUNING.fish.biteWindowMs;
+      current.lureY = TUNING.world.lureSinkDepthY;
+      setRipples((value) => [
+        ...value,
+        {
+          id: createId(),
+          pos: current.lurePos,
+          radius: TUNING.lure.rippleRadiusOnImpactM,
+          createdAt: now,
+          durationMs: TUNING.fish.cueRippleDurationMs,
+          falseCue: false
+        }
+      ]);
       audio.current.nibbleTick();
       navigator.vibrate?.(TUNING.haptics.nibbleTick);
       track({ type: 'bite_window_open' });

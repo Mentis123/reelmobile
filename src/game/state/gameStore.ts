@@ -20,6 +20,7 @@ type GameStore = {
   gameState: GameState;
   fishState: FishState;
   tension: number;
+  reeling: boolean;
   seed: string;
   lureState: string;
   debugMetrics: DebugMetrics;
@@ -27,6 +28,7 @@ type GameStore = {
   setGameState: (gameState: GameState) => void;
   setFishState: (fishState: FishState) => void;
   setTension: (tension: number) => void;
+  setReeling: (reeling: boolean) => void;
   setSeed: (seed: string) => void;
   setLureState: (lureState: string) => void;
   setDebugMetrics: (debugMetrics: DebugMetrics) => void;
@@ -37,6 +39,7 @@ export const useGameStore = create<GameStore>((set) => ({
   gameState: { kind: 'splash' },
   fishState: { kind: 'wander', targetPos: { x: TUNING.world.fishStart.x, z: TUNING.world.fishStart.z }, sinceMs: 0 },
   tension: 0,
+  reeling: false,
   seed: '',
   lureState: 'waiting',
   debugMetrics: {
@@ -54,6 +57,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setGameState: (gameState) => set({ gameState }),
   setFishState: (fishState) => set({ fishState }),
   setTension: (tension) => set({ tension }),
+  setReeling: (reeling) => set({ reeling }),
   setSeed: (seed) => set({ seed }),
   setLureState: (lureState) => set({ lureState }),
   setDebugMetrics: (debugMetrics) => set({ debugMetrics }),

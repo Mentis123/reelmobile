@@ -117,6 +117,7 @@ export const TUNING = {
     lineSnapThreshold: 0.92,
     lineSlackEscapeThreshold: 0.05,
     slackEscapeWindowMs: 1500,
+    hookedInitialTension: 0.35,
     tensionRiseRate: 0.6,
     tensionFallRate: 0.4,
     tensionReelBoost: 0.32,
