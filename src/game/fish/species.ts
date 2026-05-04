@@ -43,6 +43,13 @@ export function createFishInstance(rng: () => number): FishInstance {
   };
 }
 
+export function createFishInstanceOfSpecies(rng: () => number, species: SpeciesId): FishInstance {
+  return {
+    species,
+    personality: rng() * 2 - 1
+  };
+}
+
 export function speciesTuning(species: SpeciesId): SpeciesTuning {
   return TUNING.fish.species[species];
 }

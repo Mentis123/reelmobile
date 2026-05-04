@@ -6,7 +6,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import * as THREE from 'three';
 
 import { ProceduralAudio } from '@/game/audio/procedural';
-import { createInitialFish, type FishSnapshot, updateFish } from '@/game/fish/fishStateMachine';
+import { createDecorFish, createInitialFish, type FishSnapshot, updateFish } from '@/game/fish/fishStateMachine';
 import { pickSpeciesCue, speciesTuning, type FishCueKind } from '@/game/fish/species';
 import { add, clamp, clampToPond, distance, lerp, lerpVec, normalize, scale, seededRandom, sub, type Vec2 } from '@/game/math/vec';
 import { createId, dailySeed, type Catch, type Failure, useSessionStore } from '@/game/persistence/sessionStore';
@@ -28,9 +28,18 @@ type PointerSnapshot = {
   startRodOffset: Vec2;
 };
 
+type DecorFish = {
+  snapshot: FishSnapshot;
+  fadePhase: number;
+  fadePeriodMs: number;
+};
+
 type Runtime = {
   state: GameState;
   fish: FishSnapshot;
+  fishFadePhase: number;
+  fishFadePeriodMs: number;
+  decorFish: DecorFish[];
   rng: () => number;
   lurePos: Vec2;
   lureVelocity: Vec2;
@@ -916,14 +925,18 @@ export function GameClient() {
 }
 
 function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, setRodOffset, setPixelRatio, onResult, onRestoringChange, onFocusActiveChange }: SceneProps) {
-  const fishRef = useRef<THREE.Mesh>(null);
+  const fishRefs = useRef<Array<THREE.Mesh | null>>(
+    Array.from({ length: TUNING.world.fishMaxVisible }, () => null)
+  );
   const lureRef = useRef<THREE.Mesh>(null);
   const { camera, gl, size } = useThree();
   const projVecRef = useRef(new THREE.Vector3());
   const fishQuatTargetRef = useRef(new THREE.Quaternion());
   const fishQuatFlatRef = useRef(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2));
   const fishYawRef = useRef(new THREE.Quaternion());
-  const fishFacingAngleRef = useRef<number | null>(null);
+  const fishFacingAnglesRef = useRef<Array<number | null>>(
+    Array.from({ length: TUNING.world.fishMaxVisible }, () => null)
+  );
   const [waterNormalTexture, dockTexture, fishTexture, lureTexture] = useLoader(THREE.TextureLoader, [
     ASSETS.waterNormal,
     ASSETS.dockPlanks,
@@ -1175,33 +1188,63 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
       setGameState(current.state);
     }
 
-    if (fishRef.current) {
-      fishRef.current.position.set(current.fish.position.x, TUNING.world.fishDepthY, current.fish.position.z);
-      const species = speciesTuning(current.fish.instance.species);
-      fishRef.current.scale.set(
-        species.widthM * (current.fish.state.kind === 'commit' ? 1 + TUNING.fish.personalityScalar : 1),
+    for (let i = 0; i < current.decorFish.length; i++) {
+      const decor = current.decorFish[i];
+      decor.snapshot = updateFish({
+        nowMs: now,
+        dt,
+        lurePos: null,
+        lureMoved: false,
+        hooked: false,
+        rng: current.rng
+      }, decor.snapshot);
+    }
+
+    const slerpAlpha = Math.min(1, dt * TUNING.fish.fishFacingTurnRate);
+
+    for (let i = 0; i < TUNING.world.fishMaxVisible; i++) {
+      const mesh = fishRefs.current[i];
+      if (!mesh) {
+        continue;
+      }
+
+      const isPrimary = i === 0;
+      const snapshot = isPrimary ? current.fish : current.decorFish[i - 1]?.snapshot;
+      if (!snapshot) {
+        mesh.visible = false;
+        continue;
+      }
+
+      mesh.visible = true;
+      mesh.position.set(snapshot.position.x, TUNING.world.fishDepthY, snapshot.position.z);
+      const species = speciesTuning(snapshot.instance.species);
+      mesh.scale.set(
+        species.widthM * (snapshot.state.kind === 'commit' ? 1 + TUNING.fish.personalityScalar : 1),
         species.heightM,
         1
       );
-      const material = fishRef.current.material as THREE.MeshBasicMaterial;
-      const baseOpacity = current.fish.state.kind === 'commit' || current.fish.state.kind === 'bite'
+      const material = mesh.material as THREE.MeshBasicMaterial;
+      const baseOpacity = snapshot.state.kind === 'commit' || snapshot.state.kind === 'bite'
         ? TUNING.world.fishCommitOpacity
         : TUNING.world.fishCueOpacity;
-      material.opacity = baseOpacity * species.opacityMultiplier * fishDepthVisibility(current.fish.position);
-      material.color.set(current.fish.state.kind === 'commit' || current.fish.state.kind === 'bite' ? '#202323' : '#111718');
+      const fade = isPrimary
+        ? fishFadeMultiplier(now, current.fishFadePhase, current.fishFadePeriodMs)
+        : fishFadeMultiplier(now, current.decorFish[i - 1].fadePhase, current.decorFish[i - 1].fadePeriodMs);
+      material.opacity = baseOpacity * species.opacityMultiplier * fishDepthVisibility(snapshot.position) * fade;
+      material.color.set(snapshot.state.kind === 'commit' || snapshot.state.kind === 'bite' ? '#202323' : '#111718');
 
-      const speed = Math.hypot(current.fish.velocity.x, current.fish.velocity.z);
-      if (speed > TUNING.fish.fishFacingMinSpeed || fishFacingAngleRef.current === null) {
+      const speed = Math.hypot(snapshot.velocity.x, snapshot.velocity.z);
+      const cachedAngle = fishFacingAnglesRef.current[i];
+      if (speed > TUNING.fish.fishFacingMinSpeed || cachedAngle === null) {
         const targetAngle = speed > TUNING.fish.fishFacingMinSpeed
-          ? Math.atan2(current.fish.velocity.z, -current.fish.velocity.x)
-          : (fishFacingAngleRef.current ?? 0);
-        fishFacingAngleRef.current = targetAngle;
+          ? Math.atan2(snapshot.velocity.z, -snapshot.velocity.x)
+          : (cachedAngle ?? 0);
+        fishFacingAnglesRef.current[i] = targetAngle;
       }
-      const targetAngle = fishFacingAngleRef.current ?? 0;
+      const targetAngle = fishFacingAnglesRef.current[i] ?? 0;
       fishYawRef.current.setFromAxisAngle(THREE_UP, targetAngle);
       fishQuatTargetRef.current.copy(fishYawRef.current).multiply(fishQuatFlatRef.current);
-      const slerpAlpha = Math.min(1, dt * TUNING.fish.fishFacingTurnRate);
-      fishRef.current.quaternion.slerp(fishQuatTargetRef.current, slerpAlpha);
+      mesh.quaternion.slerp(fishQuatTargetRef.current, slerpAlpha);
     }
 
     if (lureRef.current) {
@@ -1257,10 +1300,21 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
       <Reeds />
       <Dock texture={dockTexture} />
       <Foreshore />
-      <mesh ref={fishRef} renderOrder={1} rotation={[-Math.PI / 2, 0, 0]} position={[TUNING.world.fishStart.x, TUNING.world.fishDepthY, TUNING.world.fishStart.z]}>
-        <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial map={fishTexture} color="#111718" transparent opacity={TUNING.world.fishCueOpacity} depthWrite={false} side={THREE.DoubleSide} />
-      </mesh>
+      {Array.from({ length: TUNING.world.fishMaxVisible }, (_, i) => (
+        <mesh
+          key={i}
+          ref={(node) => {
+            fishRefs.current[i] = node;
+          }}
+          renderOrder={1}
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[TUNING.world.fishStart.x, TUNING.world.fishDepthY, TUNING.world.fishStart.z]}
+          visible={false}
+        >
+          <planeGeometry args={[1, 1]} />
+          <meshBasicMaterial map={fishTexture} color="#111718" transparent opacity={TUNING.world.fishCueOpacity} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
       <mesh ref={lureRef} visible={false} renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[TUNING.world.lureStart.x, TUNING.world.lureSurfaceY, TUNING.world.lureStart.z]}>
         <planeGeometry args={[TUNING.lure.lureRadiusM * 4.6, TUNING.lure.lureRadiusM * 2.7]} />
         <meshBasicMaterial map={lureTexture} transparent depthWrite={false} side={THREE.DoubleSide} />
@@ -1733,10 +1787,19 @@ function createRuntime(seed: string, spawnIndex = 0): Runtime {
   const lurePos = { ...TUNING.world.lureStart };
   const fish = createInitialFish(rng);
   const fishSpecies = speciesTuning(fish.instance.species);
+  const extraCount = Math.floor(rng() * TUNING.world.fishMaxVisible);
+  const decorFish: DecorFish[] = Array.from({ length: extraCount }, () => ({
+    snapshot: createDecorFish(rng, fish.instance.species),
+    fadePhase: rng() * Math.PI * 2,
+    fadePeriodMs: lerp(TUNING.world.fishFadeMinPeriodMs, TUNING.world.fishFadeMaxPeriodMs, rng())
+  }));
 
   return {
     state: { kind: 'splash' },
     fish,
+    fishFadePhase: rng() * Math.PI * 2,
+    fishFadePeriodMs: lerp(TUNING.world.fishFadeMinPeriodMs, TUNING.world.fishFadeMaxPeriodMs, rng()),
+    decorFish,
     rng,
     lurePos,
     lureVelocity: { x: 0, z: 0 },
@@ -2106,6 +2169,11 @@ function fishDepthVisibility(position: Vec2): number {
   );
 
   return lerp(TUNING.world.fishShallowOpacityMultiplier, TUNING.world.fishDeepOpacityMultiplier, depth);
+}
+
+function fishFadeMultiplier(nowMs: number, phase: number, periodMs: number): number {
+  const t = (Math.sin((nowMs / periodMs) * Math.PI * 2 + phase) + 1) * 0.5;
+  return lerp(TUNING.world.fishFadeMinMultiplier, TUNING.world.fishFadeMaxMultiplier, t);
 }
 
 function nowMs(): number {

@@ -1,6 +1,6 @@
 import { add, distance, normalize, scale, sub, type Vec2 } from '@/game/math/vec';
 import { TUNING } from '@/game/tuning/tuning';
-import { createFishInstance, personalityMultiplier, speciesTuning, type FishInstance } from '@/game/fish/species';
+import { createFishInstance, createFishInstanceOfSpecies, personalityMultiplier, speciesTuning, type FishInstance, type SpeciesId } from '@/game/fish/species';
 
 export type FishState =
   | { kind: 'wander'; targetPos: Vec2; sinceMs: number }
@@ -31,10 +31,19 @@ export type FishUpdateInput = {
 
 export function createInitialFish(seedRand: () => number): FishSnapshot {
   const instance = createFishInstance(seedRand);
+  return spawnFishFromInstance(seedRand, instance);
+}
+
+export function createDecorFish(seedRand: () => number, species: SpeciesId): FishSnapshot {
+  const instance = createFishInstanceOfSpecies(seedRand, species);
+  return spawnFishFromInstance(seedRand, instance);
+}
+
+function spawnFishFromInstance(seedRand: () => number, instance: FishInstance): FishSnapshot {
   const offset = (seedRand() - 0.5) * TUNING.world.fishWanderRadiusM;
   const position = {
     x: TUNING.world.fishStart.x + offset,
-    z: TUNING.world.fishStart.z
+    z: TUNING.world.fishStart.z + (seedRand() - 0.5) * TUNING.world.fishWanderRadiusM * 0.5
   };
 
   return {
