@@ -3,10 +3,14 @@ function currentCandidateTag() {
     return process.env.NEXT_PUBLIC_REEL_CANDIDATE_TAG;
   }
 
-  return 'v0.1-vertical-slice-candidate';
+  return 'v0.1.5-rod-control-candidate';
 }
 
 function currentMilestone(tag) {
+  if (tag.startsWith('v0.1.5-')) {
+    return 'm1.5';
+  }
+
   return tag.startsWith('v0.1-') ? 'm1' : 'm0';
 }
 

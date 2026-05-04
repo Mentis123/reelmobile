@@ -7,7 +7,7 @@ import * as THREE from 'three';
 
 import { ProceduralAudio } from '@/game/audio/procedural';
 import { createInitialFish, type FishSnapshot, updateFish } from '@/game/fish/fishStateMachine';
-import { clamp, clampToPond, distance, easeOutCubic, lerp, lerpVec, normalize, scale, seededRandom, sub, type Vec2 } from '@/game/math/vec';
+import { add, clamp, clampToPond, distance, easeOutCubic, lerp, lerpVec, normalize, scale, seededRandom, sub, type Vec2 } from '@/game/math/vec';
 import { createId, dailySeed, type Catch, type Failure, useSessionStore } from '@/game/persistence/sessionStore';
 import { createVerletLine, type VerletLine, updateVerletLine } from '@/game/physics/verletLine';
 import { useGameStore } from '@/game/state/gameStore';
@@ -18,11 +18,13 @@ import { failureStory, generateStory } from '@/game/ui/storyGenerator';
 
 type PointerSnapshot = {
   id: number;
+  mode: 'aiming' | 'pending_lure' | 'rod_control' | 'reeling';
   startX: number;
   startY: number;
   x: number;
   y: number;
   downAt: number;
+  startRodOffset: Vec2;
 };
 
 type Runtime = {
@@ -36,6 +38,9 @@ type Runtime = {
   lureFlashUntil: number;
   line: VerletLine;
   tension: number;
+  rodOffset: Vec2;
+  rodTargetOffset: Vec2;
+  rodControlActive: boolean;
   reeling: boolean;
   lastBiteAt: number;
   lastTwitchAt: number | null;
@@ -80,6 +85,7 @@ type SceneProps = {
   audio: React.MutableRefObject<ProceduralAudio>;
   setLinePoints: (points: Vec2[]) => void;
   setRipples: React.Dispatch<React.SetStateAction<Ripple[]>>;
+  setRodOffset: (offset: Vec2) => void;
   setPixelRatio: (pixelRatio: number) => void;
   onResult: (outcome: 'catch' | FailureKind, peakTension: number, nearSnaps: number, hookedAt: number) => void;
   onRestoringChange: (restoring: boolean) => void;
@@ -94,6 +100,7 @@ export function GameClient() {
   const [aimPreview, setAimPreview] = useState<AimPreview | null>(null);
   const [linePoints, setLinePoints] = useState<Vec2[]>([]);
   const [ripples, setRipples] = useState<Ripple[]>([]);
+  const [rodOffset, setRodOffset] = useState<Vec2>({ x: 0, z: 0 });
   const [pixelRatio, setPixelRatio] = useState(1);
   const [restoring, setRestoring] = useState(false);
   const [landscape, setLandscape] = useState(false);
@@ -242,6 +249,7 @@ export function GameClient() {
     runtime.current = nextRuntime;
     setLinePoints([]);
     setRipples([]);
+    setRodOffset({ x: 0, z: 0 });
     setReeling(false);
     setGameState(nextRuntime.state);
     setFishState(nextRuntime.fish.state);
@@ -275,14 +283,17 @@ export function GameClient() {
 
     pointerRef.current = {
       id: event.pointerId,
+      mode: 'pending_lure',
       startX: event.clientX,
       startY: event.clientY,
       x: event.clientX,
       y: event.clientY,
-      downAt: performance.now()
+      downAt: performance.now(),
+      startRodOffset: { ...runtime.current.rodOffset }
     };
 
     if (runtime.current.state.kind === 'hooked') {
+      pointerRef.current.mode = 'reeling';
       runtime.current.reeling = true;
       setReeling(true);
       return;
@@ -293,7 +304,21 @@ export function GameClient() {
       return;
     }
 
-    if (runtime.current.state.kind === 'scouting' || runtime.current.state.kind === 'lure_idle') {
+    if (runtime.current.state.kind === 'lure_idle' && viewport && isRodTouch(event.clientX, event.clientY, viewport)) {
+      pointerRef.current.mode = 'rod_control';
+      runtime.current.rodControlActive = true;
+      runtime.current.state = {
+        kind: 'rod_control',
+        lurePos: runtime.current.lurePos,
+        sinceMs: performance.now(),
+        load: runtime.current.tension
+      };
+      setGameState(runtime.current.state);
+      return;
+    }
+
+    if (runtime.current.state.kind === 'scouting') {
+      pointerRef.current.mode = 'aiming';
       const cast = computeCast(event.clientX, event.clientY, event.clientX, event.clientY);
       runtime.current.state = {
         kind: 'aiming',
@@ -309,12 +334,45 @@ export function GameClient() {
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const pointer = pointerRef.current;
 
-    if (!pointer || pointer.id !== event.pointerId || runtime.current.state.kind !== 'aiming') {
+    if (!pointer || pointer.id !== event.pointerId) {
       return;
     }
 
     pointer.x = event.clientX;
     pointer.y = event.clientY;
+
+    if (pointer.mode === 'rod_control') {
+      runtime.current.rodTargetOffset = clampRodOffset({
+        x: pointer.startRodOffset.x + (pointer.x - pointer.startX) / TUNING.ui.worldProjectScale,
+        z: pointer.startRodOffset.z - (pointer.y - pointer.startY) / TUNING.input.rodControlScreenPixels
+      });
+      return;
+    }
+
+    if (pointer.mode === 'pending_lure') {
+      const moved = Math.hypot(pointer.x - pointer.startX, pointer.y - pointer.startY);
+
+      if (moved < TUNING.input.tapMoveTolerancePx) {
+        return;
+      }
+
+      pointer.mode = 'aiming';
+      const cast = computeCast(pointer.startX, pointer.startY, pointer.x, pointer.y);
+      runtime.current.state = {
+        kind: 'aiming',
+        startPx: { x: pointer.startX, z: pointer.startY },
+        currentPx: { x: pointer.x, z: pointer.y },
+        power: cast.power
+      };
+      setGameState(runtime.current.state);
+      setAimPreview({ power: cast.power, target: cast.target });
+      return;
+    }
+
+    if (pointer.mode !== 'aiming' || runtime.current.state.kind !== 'aiming') {
+      return;
+    }
+
     const cast = computeCast(pointer.startX, pointer.startY, pointer.x, pointer.y);
     runtime.current.state = {
       ...runtime.current.state,
@@ -333,9 +391,20 @@ export function GameClient() {
       return;
     }
 
-    if (runtime.current.state.kind === 'hooked') {
+    if (pointer?.mode === 'reeling' || runtime.current.state.kind === 'hooked') {
       runtime.current.reeling = false;
       setReeling(false);
+      return;
+    }
+
+    if (pointer?.mode === 'rod_control') {
+      runtime.current.rodControlActive = false;
+      runtime.current.rodTargetOffset = { x: 0, z: 0 };
+
+      if (runtime.current.state.kind === 'rod_control') {
+        runtime.current.state = { kind: 'lure_idle', lurePos: runtime.current.lurePos, sinceMs: performance.now(), lastTwitchAt: runtime.current.lastTwitchAt };
+        setGameState(runtime.current.state);
+      }
       return;
     }
 
@@ -363,8 +432,8 @@ export function GameClient() {
       return;
     }
 
-    if (!pointer || runtime.current.state.kind !== 'aiming') {
-      if (runtime.current.state.kind === 'lure_idle') {
+    if (!pointer || pointer.mode === 'pending_lure' || runtime.current.state.kind !== 'aiming') {
+      if (runtime.current.state.kind === 'lure_idle' || runtime.current.state.kind === 'rod_control') {
         twitchLure();
       } else if (runtime.current.lateHookUntil > performance.now()) {
         resolveMiss('missed_late');
@@ -412,7 +481,7 @@ export function GameClient() {
   };
 
   function twitchLure() {
-    if (!runtime.current.lureVisible || runtime.current.state.kind !== 'lure_idle') {
+    if (!runtime.current.lureVisible || (runtime.current.state.kind !== 'lure_idle' && runtime.current.state.kind !== 'rod_control')) {
       return;
     }
 
@@ -429,7 +498,7 @@ export function GameClient() {
       x: runtime.current.lurePos.x + (runtime.current.rng() - TUNING.lure.lureTwitchSidewaysRatio) * TUNING.lure.lureTwitchDistanceM,
       z: runtime.current.lurePos.z + TUNING.lure.lureTwitchDistanceM
     });
-    runtime.current.state = { ...runtime.current.state, lastTwitchAt: now };
+    runtime.current.state = { kind: 'lure_idle', lurePos: runtime.current.lurePos, sinceMs: now, lastTwitchAt: now };
     addRipple(runtime.current.lurePos, TUNING.lure.rippleRadiusOnTwitchM, false);
     audio.current.lureTwitch();
     setGameState(runtime.current.state);
@@ -481,7 +550,7 @@ export function GameClient() {
   );
   const lineColor = tension > TUNING.tension.nearSnapThreshold
     ? TUNING.line.lineSnapColour
-    : tension > TUNING.tension.tensionSafeHold
+    : tension >= TUNING.tension.tensionSweetSpotMin
       ? TUNING.line.lineTautColour
       : TUNING.line.lineSlackColour;
   const hookImpulse = gameState.kind === 'hooked'
@@ -489,7 +558,7 @@ export function GameClient() {
     : 0;
   const lineWidth = (tension > TUNING.tension.nearSnapThreshold
     ? TUNING.line.lineSnapWidthPx
-    : tension > TUNING.tension.tensionSafeHold
+    : tension >= TUNING.tension.tensionSweetSpotMin
       ? TUNING.line.lineTautWidthPx
       : TUNING.line.lineSlackWidthPx) + hookImpulse * TUNING.line.lineHookWidthBoostPx;
 
@@ -504,7 +573,7 @@ export function GameClient() {
         : gameState.kind === 'hooked' && !reeling
           ? { kind: 'hold', text: 'Hold to reel' }
           : null;
-  const showTensionBar = gameState.kind === 'hooked';
+  const showTensionBar = gameState.kind === 'hooked' || gameState.kind === 'rod_control';
 
   return (
     <main
@@ -532,6 +601,7 @@ export function GameClient() {
             audio={audio}
             setLinePoints={setLinePoints}
             setRipples={setRipples}
+            setRodOffset={setRodOffset}
             setPixelRatio={setPixelRatio}
             onResult={finishResult}
             onRestoringChange={setRestoring}
@@ -550,7 +620,7 @@ export function GameClient() {
             strokeWidth={lineWidth}
           />
           <path
-            d={rodPathFor(tension, viewport, hookImpulse)}
+            d={rodPathFor(tension, viewport, hookImpulse, rodOffset)}
             fill="none"
             stroke="var(--dock-warm)"
             strokeLinecap="round"
@@ -704,7 +774,7 @@ export function GameClient() {
   }
 }
 
-function GameScene({ started, runtime, audio, setLinePoints, setRipples, setPixelRatio, onResult, onRestoringChange }: SceneProps) {
+function GameScene({ started, runtime, audio, setLinePoints, setRipples, setRodOffset, setPixelRatio, onResult, onRestoringChange }: SceneProps) {
   const fishRef = useRef<THREE.Mesh>(null);
   const lureRef = useRef<THREE.Mesh>(null);
   const waterRef = useRef<THREE.Mesh>(null);
@@ -786,9 +856,14 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setPixe
         ]);
         setGameState(current.state);
       }
-    } else if (gameState.kind === 'lure_idle') {
+    } else if (gameState.kind === 'lure_idle' || gameState.kind === 'rod_control') {
       current.lureY = Math.max(TUNING.world.lureSinkDepthY, current.lureY - TUNING.lure.lureSinkRate * dt);
-      setLureState(now < current.lureMovedUntil ? 'twitch' : 'sink');
+      updateRodControl(current, dt);
+      if (gameState.kind === 'rod_control') {
+        current.state = { ...gameState, lurePos: current.lurePos, load: current.tension };
+        setGameState(current.state);
+      }
+      setLureState(current.rodControlActive ? 'rod-pull' : now < current.lureMovedUntil ? 'twitch' : 'sink');
     } else if (gameState.kind === 'bite_window') {
       const biteT = clamp((now - gameState.openedAt) / TUNING.lure.lureBiteTugDurationMs, 0, 1);
       const tug = Math.sin(biteT * Math.PI * TUNING.lure.lureBiteTugPulses) * (1 - biteT) * TUNING.lure.lureBiteTugAmplitudeM;
@@ -936,11 +1011,12 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setPixe
       material.emissiveIntensity = flashing ? TUNING.audio.sfxGain : TUNING.lure.lureWobbleAmplitude;
     }
 
-    current.line = updateVerletLine(current.line, rodTipFor(current.tension, hookImpulseFor(current, now)), current.lurePos, dt, current.tension);
+    current.line = updateVerletLine(current.line, rodTipForRuntime(current, hookImpulseFor(current, now)), current.lurePos, dt, current.tension);
     setLinePoints(current.line.points.map((point) => point.pos));
+    setRodOffset(current.rodOffset);
     setFishState(current.fish.state);
     setTension(current.tension);
-    audio.current.updateLoops(current.tension, current.reeling);
+    audio.current.updateLoops(current.tension, current.reeling || current.rodControlActive, current.rodControlActive);
     updatePerformance(current, dt, gl, setPixelRatio, setDebugMetrics, recordPerf, recordPixelRatioDegradation);
   });
 
@@ -1023,6 +1099,9 @@ function createRuntime(seed: string): Runtime {
     lureFlashUntil: 0,
     line: createVerletLine(TUNING.world.rodTip, lurePos),
     tension: 0,
+    rodOffset: { x: 0, z: 0 },
+    rodTargetOffset: { x: 0, z: 0 },
+    rodControlActive: false,
     reeling: false,
     lastBiteAt: 0,
     lastTwitchAt: null,
@@ -1091,6 +1170,33 @@ function updateFight(runtime: Runtime, dt: number, onResult: SceneProps['onResul
     return;
   }
 
+}
+
+function updateRodControl(runtime: Runtime, dt: number) {
+  runtime.rodOffset = lerpVec(
+    runtime.rodOffset,
+    runtime.rodControlActive ? runtime.rodTargetOffset : { x: 0, z: 0 },
+    Math.min(1, dt * TUNING.input.rodControlReturnRate)
+  );
+
+  const rodTip = rodTipForRuntime(runtime);
+  const lineVector = sub(rodTip, runtime.lurePos);
+  const lineDistance = Math.hypot(lineVector.x, lineVector.z);
+  const rodLoad = clamp(
+    Math.hypot(runtime.rodOffset.x, runtime.rodOffset.z) / TUNING.input.rodControlMaxOffsetM * TUNING.input.rodControlTensionGain,
+    0,
+    1
+  );
+  runtime.tension = runtime.rodControlActive
+    ? lerp(runtime.tension, rodLoad, Math.min(1, dt * TUNING.input.rodControlReturnRate))
+    : Math.max(0, runtime.tension - TUNING.tension.tensionSlackFallRate * dt);
+
+  if (runtime.rodControlActive && lineDistance > TUNING.lure.lureTwitchDistanceM) {
+    const pull = scale(normalize(lineVector), TUNING.input.rodControlLurePullMps * runtime.tension * dt);
+    runtime.lurePos = clampToFishableWater(add(runtime.lurePos, pull));
+    runtime.lureMovedUntil = performance.now() + TUNING.lure.lureTwitchDurationMs;
+    runtime.lureFlashUntil = performance.now() + TUNING.lure.lureFlashDurationMs;
+  }
 }
 
 function updatePerformance(
@@ -1171,19 +1277,61 @@ function rodTipFor(tension: number, hookImpulse = 0): Vec2 {
   };
 }
 
+function rodTipForRuntime(runtime: Runtime, hookImpulse = 0): Vec2 {
+  const bend = rodTipFor(runtime.tension, hookImpulse);
+
+  return {
+    x: bend.x + runtime.rodOffset.x,
+    z: bend.z + runtime.rodOffset.z
+  };
+}
+
 function isEarlyHookAttempt(fishStateKind: string): boolean {
   return TUNING.fish.earlyHookStates.some((state) => state === fishStateKind);
 }
 
-function rodPathFor(tension: number, viewport: ViewportSize, hookImpulse: number): string {
+function rodPathFor(tension: number, viewport: ViewportSize, hookImpulse: number, rodOffset: Vec2): string {
   const butt = worldToScreen(TUNING.world.rodButt, viewport);
-  const tip = worldToScreen(rodTipFor(tension, hookImpulse), viewport);
+  const bentTip = rodTipFor(tension, hookImpulse);
+  const tip = worldToScreen({ x: bentTip.x + rodOffset.x, z: bentTip.z + rodOffset.z }, viewport);
   const control = {
     x: lerp(butt.x, tip.x, 0.55) - TUNING.world.rodBendMaxM * TUNING.ui.worldProjectScale * tension,
     y: lerp(butt.y, tip.y, 0.55) - hookImpulse * TUNING.ui.hookJerkScreenPx
   };
 
   return `M ${butt.x} ${butt.y} Q ${control.x} ${control.y} ${tip.x} ${tip.y}`;
+}
+
+function isRodTouch(screenX: number, screenY: number, viewport: ViewportSize): boolean {
+  const butt = worldToScreen(TUNING.world.rodButt, viewport);
+  const tip = worldToScreen(TUNING.world.rodTip, viewport);
+
+  return distancePointToSegment({ x: screenX, z: screenY }, { x: butt.x, z: butt.y }, { x: tip.x, z: tip.y }) <= TUNING.input.rodTouchRadiusPx;
+}
+
+function distancePointToSegment(point: Vec2, start: Vec2, end: Vec2): number {
+  const segment = sub(end, start);
+  const lengthSq = segment.x * segment.x + segment.z * segment.z;
+
+  if (lengthSq === 0) {
+    return distance(point, start);
+  }
+
+  const t = clamp(((point.x - start.x) * segment.x + (point.z - start.z) * segment.z) / lengthSq, 0, 1);
+  return distance(point, {
+    x: start.x + segment.x * t,
+    z: start.z + segment.z * t
+  });
+}
+
+function clampRodOffset(offset: Vec2): Vec2 {
+  const length = Math.hypot(offset.x, offset.z);
+
+  if (length <= TUNING.input.rodControlMaxOffsetM) {
+    return offset;
+  }
+
+  return scale(normalize(offset), TUNING.input.rodControlMaxOffsetM);
 }
 
 function hookImpulseFor(runtime: Runtime, now: number): number {

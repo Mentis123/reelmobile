@@ -35,8 +35,8 @@ test('M0 shell routes load', async ({ context }) => {
 
   const dev = await openRoute(context, '/dev');
   await expect(dev.page.getByRole('heading', { name: 'Dev Gate' })).toBeVisible();
-  await expect(dev.page.getByText('M1 vertical slice real-iPhone gate')).toBeVisible();
-  await expect(dev.page.getByText('v0.1-vertical-slice-candidate')).toBeVisible();
+  await expect(dev.page.getByText('M1.5 rod control real-iPhone gate')).toBeVisible();
+  await expect(dev.page.getByText('v0.1.5-rod-control-candidate')).toBeVisible();
   expect(dev.errors).toEqual([]);
   await dev.page.close();
 });
@@ -86,6 +86,20 @@ test('M1 vertical slice smoke', async ({ page }) => {
     return state === 'casting' || state === 'lure_idle';
   });
   await page.waitForFunction(() => document.querySelector('[data-testid="game-route"]')?.getAttribute('data-game-state') === 'lure_idle');
+
+  const rodBox = await page.locator('.line-overlay path').boundingBox();
+  expect(rodBox).not.toBeNull();
+
+  if (rodBox) {
+    const rodX = rodBox.x + rodBox.width * 0.55;
+    const rodY = rodBox.y + rodBox.height * 0.55;
+    await page.mouse.move(rodX, rodY);
+    await page.mouse.down();
+    await page.mouse.move(rodX - 70, rodY - 60, { steps: 6 });
+    await expect(page.getByTestId('game-route')).toHaveAttribute('data-game-state', 'rod_control');
+    await page.mouse.up();
+    await expect(page.getByTestId('game-route')).toHaveAttribute('data-game-state', 'lure_idle');
+  }
 
   expect(errors).toEqual([]);
 });

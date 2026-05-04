@@ -267,3 +267,31 @@ Append after every milestone. Format:
 **Next:**
 - Start a new session with the next explicit goal.
 - Use this DEVLOG and latest `main` as the starting point.
+
+---
+
+## v0.1.5-rod-control-candidate (2026-05-04)
+**Shipped:**
+- Synced `main` after `v0.1-vertical-slice-approved` and stayed inside Phase A feel refinement; no Phase B art started.
+- Added post-cast rod/handle touch detection that enters `rod_control` instead of recasting.
+- Split post-cast water input so taps twitch, rod drags manipulate the rod, and water drags still cast only after movement intent is clear.
+- Rod-tip manipulation now bends/moves the rod, raises line load, pulls the lure through the water, flashes the lure, and feeds the existing tension visuals.
+- Slack/sweet/danger feedback now reads through line colour/width, rod bend, tension bar, lure motion, and click/strain audio thresholds.
+- `/dev` now exposes an M1.5 rod-control real-iPhone gate with checklist items targeted at rod manipulation and tension readability.
+- Added Playwright smoke coverage for drag-release cast followed by rod-control drag returning to `lure_idle`.
+- M1.5 validation passed: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`, and `pnpm test:e2e`.
+
+**Cut:**
+- No Phase B art, generated assets, new fish species, gear systems, journal, economy, or onboarding UI.
+- No approved tag. Human iPhone review remains the gate.
+
+**Discovered:**
+- The approved loop already had enough tension plumbing to reuse for rod load; the main ambiguity was input intent, not another UI layer.
+- Starting post-cast touches as pending intent avoids accidental recast/twitch ambiguity without removing water-drag recasting.
+- Candidate metadata is injected in both `buildInfo.ts` and `next.config.mjs`; both must move together or `/dev` can show stale candidate data.
+- Adding `m1.5` as a distinct milestone requires an explicit checklist entry; otherwise `/dev` falls back to M0.
+
+**Next:**
+- STOP for human iPhone review through `/dev` QR.
+- Review whether dragging the visible rod/handle feels like pulling the lure, and whether slack/sweet/danger can be read before looking at the HUD.
+- Human may create an approved tag only after real-device review passes.

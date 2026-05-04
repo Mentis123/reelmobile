@@ -8,6 +8,7 @@ export type GameState =
   | { kind: 'aiming'; startPx: Vec2; currentPx: Vec2; power: number }
   | { kind: 'casting'; from: Vec2; target: Vec2; startedAt: number; flightMs: number; power: number }
   | { kind: 'lure_idle'; lurePos: Vec2; sinceMs: number; lastTwitchAt: number | null }
+  | { kind: 'rod_control'; lurePos: Vec2; sinceMs: number; load: number }
   | { kind: 'bite_window'; openedAt: number; closesAt: number; lurePos: Vec2 }
   | { kind: 'hooked'; hookedAt: number; stamina: number; slackMs: number; nearSnaps: number; peakTension: number }
   | { kind: 'result'; outcome: 'catch' | FailureKind; storyText: string; shownAt: number; peakTension: number };

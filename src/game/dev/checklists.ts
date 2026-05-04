@@ -4,7 +4,7 @@ export type DevChecklistItem = {
 };
 
 export type DevChecklist = {
-  milestone: 'm0' | 'm1';
+  milestone: 'm0' | 'm1' | 'm1.5';
   title: string;
   items: DevChecklistItem[];
 };
@@ -36,9 +36,29 @@ export const checklists: Record<DevChecklist['milestone'], DevChecklist> = {
       { id: 'story', text: 'Does the result screen tell a tiny story rather than show stats?' },
       { id: 'repeat', text: 'After one full cycle, do I want to cast again?' }
     ]
+  },
+  'm1.5': {
+    milestone: 'm1.5',
+    title: 'M1.5 rod control real-iPhone gate',
+    items: [
+      { id: 'intent', text: "Within 10 seconds of tapping in, do I understand what I'm supposed to do?" },
+      { id: 'cast', text: 'Within 3 seconds of trying, can I successfully cast?' },
+      { id: 'cue', text: 'Do I see at least one ambiguous fish-like cue within 15 seconds?' },
+      { id: 'reaction', text: 'When my lure splashes near a cue, does something react believably?' },
+      { id: 'rod-control', text: 'After the lure lands, can I drag the rod or handle to pull the lure without recasting?' },
+      { id: 'bite', text: 'Does the bite moment register clearly through audio and visual feedback?' },
+      { id: 'hook', text: 'When I successfully hook, does it feel decisive?' },
+      { id: 'tension', text: 'Can I read slack, sweet spot, and danger through line, rod bend, lure motion, and audio before relying on the HUD?' },
+      { id: 'failure', text: 'Does at least one failure mode feel learnable rather than buggy?' },
+      { id: 'repeat', text: 'After one full cycle, do I want to cast again?' }
+    ]
   }
 };
 
 export function getChecklist(milestone: string): DevChecklist {
+  if (milestone === 'm1.5') {
+    return checklists['m1.5'];
+  }
+
   return milestone === 'm1' ? checklists.m1 : checklists.m0;
 }

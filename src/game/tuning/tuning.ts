@@ -57,6 +57,12 @@ export const TUNING = {
     aimPreviewPowerPx: 180,
     lowerScreenStartRatio: 0.42,
     tapMoveTolerancePx: 10,
+    rodTouchRadiusPx: 64,
+    rodControlScreenPixels: 150,
+    rodControlMaxOffsetM: 0.72,
+    rodControlReturnRate: 7,
+    rodControlLurePullMps: 1.15,
+    rodControlTensionGain: 0.72,
     focusHoldMs: 1800
   },
   line: {
@@ -135,6 +141,8 @@ export const TUNING = {
     tensionBurstRate: 0.22,
     tensionSlackFallRate: 0.42,
     tensionSafeHold: 0.48,
+    tensionSweetSpotMin: 0.35,
+    tensionSweetSpotMax: 0.68,
     nearSnapThreshold: 0.85,
     splashHighTension: 0.7
   },
@@ -195,6 +203,8 @@ export const TUNING = {
     lineStrainMinTension: 0.78,
     lineStrainGain: 0.16,
     lineStrainPitchRise: 1,
+    rodLoadTickMinTension: 0.35,
+    rodLoadTickGain: 0.045,
     ambientFilterHz: 200,
     ambientBufferSeconds: 1,
     ambientNoiseStep: 0.12,

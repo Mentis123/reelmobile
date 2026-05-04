@@ -76,7 +76,7 @@ export class ProceduralAudio {
     this.noiseBurst(TUNING.audio.escapeMs, TUNING.audio.sfxGain * 0.62, 'lowpass', 1000, 180);
   }
 
-  updateLoops(tension: number, reeling: boolean) {
+  updateLoops(tension: number, reeling: boolean, rodLoading = false) {
     if (!this.ctx || !this.sfx) {
       return;
     }
@@ -101,11 +101,13 @@ export class ProceduralAudio {
       this.lineZip.gain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.03);
     }
 
-    if (reeling && this.reelTimer === null) {
+    const shouldClick = reeling && (!rodLoading || tension >= TUNING.audio.rodLoadTickMinTension);
+
+    if (shouldClick && this.reelTimer === null) {
       this.reelClickLoop();
     }
 
-    if (!reeling && this.reelTimer !== null) {
+    if (!shouldClick && this.reelTimer !== null) {
       window.clearTimeout(this.reelTimer);
       this.reelTimer = null;
     }
@@ -126,7 +128,7 @@ export class ProceduralAudio {
     const tensionFactor = Math.min(1, Math.max(0, this.reelLoopTension));
     this.noiseBurst(
       TUNING.audio.twitchMs,
-      TUNING.audio.reelClickGain + tensionFactor * TUNING.audio.reelClickGain,
+      TUNING.audio.reelClickGain + tensionFactor * TUNING.audio.rodLoadTickGain,
       'bandpass',
       TUNING.audio.reelClickFilterStartHz,
       TUNING.audio.reelClickFilterEndHz
