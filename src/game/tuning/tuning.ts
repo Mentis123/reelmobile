@@ -24,7 +24,12 @@ export const TUNING = {
     dockZ: -4.85,
     rodTip: { x: 0, z: -4.2 },
     rodButt: { x: 0.74, z: -5.7 },
+    rodTipY: 0.62,
     rodBendMaxM: 0.55,
+    rodScreenButtXRatio: 0.78,
+    rodScreenButtBottomMarginPx: 86,
+    rodReelOffsetPx: 22,
+    lineSagAmplitudeY: 0.32,
     lureStart: { x: 0, z: -3.45 },
     fishStart: { x: -1.4, z: 1.35 },
     fishWanderRadiusM: 4.2,
@@ -140,6 +145,8 @@ export const TUNING = {
     catchMinSizeScore: 0.35,
     catchMaxSizeScore: 0.94,
     personalityModulation: 0.15,
+    fishFacingMinSpeed: 0.04,
+    fishFacingTurnRate: 5.5,
     species: {
       bronze_carp: {
         spawnWeight: 28,
