@@ -63,7 +63,11 @@ export const TUNING = {
     rodControlReturnRate: 7,
     rodControlLurePullMps: 1.15,
     rodControlTensionGain: 0.72,
-    focusHoldMs: 1800
+    focusHoldMs: 1800,
+    focusDurationMs: 1800,
+    focusCooldownMs: 4000,
+    focusGlareReduction: 0.6,
+    focusWaterSpeedMultiplier: 0.7
   },
   line: {
     lineSegments: 10,

@@ -288,6 +288,38 @@ code {
   animation: biteHaloPulse 480ms ease-in-out infinite;
 }
 
+.focus-vignette,
+.focus-ring {
+  position: absolute;
+  pointer-events: none;
+}
+
+.focus-vignette {
+  inset: 0;
+  background: radial-gradient(circle at 50% 48%, transparent 34%, rgba(10, 14, 14, 0.34) 100%);
+  mix-blend-mode: multiply;
+}
+
+.focus-ring {
+  left: 0;
+  top: 0;
+  width: 64px;
+  height: 64px;
+  border: 1px solid rgba(200, 196, 178, 0.42);
+  border-radius: 999px;
+  box-shadow: 0 0 18px rgba(200, 196, 178, 0.16);
+  animation: focusRingFade 4000ms ease-out forwards;
+}
+
+@keyframes focusRingFade {
+  from {
+    opacity: 0.56;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes biteHaloPulse {
   0% {
     transform: scale(0.85);
@@ -402,11 +434,12 @@ code {
 }
 
 .splash-gate span {
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(3.3rem, 16vw, 5.4rem);
-  font-style: italic;
-  font-weight: 400;
-  letter-spacing: 0;
+  display: block;
+  width: min(78vw, 420px);
+  aspect-ratio: 3.5;
+  overflow: hidden;
+  background: url("/assets/ui/wordmark.svg") center / contain no-repeat;
+  color: transparent;
 }
 
 @keyframes splashIn {

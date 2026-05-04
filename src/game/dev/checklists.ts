@@ -4,7 +4,7 @@ export type DevChecklistItem = {
 };
 
 export type DevChecklist = {
-  milestone: 'm0' | 'm1' | 'm1.5';
+  milestone: 'm0' | 'm1' | 'm1.5' | 'm2';
   title: string;
   items: DevChecklistItem[];
 };
@@ -52,10 +52,25 @@ export const checklists: Record<DevChecklist['milestone'], DevChecklist> = {
       { id: 'failure', text: 'Does at least one failure mode feel learnable rather than buggy?' },
       { id: 'repeat', text: 'After one full cycle, do I want to cast again?' }
     ]
+  },
+  m2: {
+    milestone: 'm2',
+    title: 'M2 pond visuals real-iPhone gate',
+    items: [
+      { id: 'coherent', text: 'Does the pond look like the art direction describes: still, cosy, twilight, ink-wash, and tactile?' },
+      { id: 'fps', text: 'Does it hold 60fps on iPhone 13 or better during a short fishing loop?' },
+      { id: 'focus', text: 'Does press-and-hold Focus mode visibly reduce water glare?' },
+      { id: 'reeds-dock', text: 'Are reeds, dock, and water visually coherent with the palette?' },
+      { id: 'playability', text: 'Do the new visuals preserve casting, lure twitch, rod control, bite, hook, fight, failures, and result flow?' }
+    ]
   }
 };
 
 export function getChecklist(milestone: string): DevChecklist {
+  if (milestone === 'm2') {
+    return checklists.m2;
+  }
+
   if (milestone === 'm1.5') {
     return checklists['m1.5'];
   }

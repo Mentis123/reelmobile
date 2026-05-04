@@ -1,6 +1,6 @@
 'use client';
 
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -74,6 +74,13 @@ type AimPreview = {
   target: Vec2;
 };
 
+type FocusIndicator = {
+  id: string;
+  x: number;
+  y: number;
+  createdAt: number;
+};
+
 type ViewportSize = {
   width: number;
   height: number;
@@ -89,7 +96,15 @@ type SceneProps = {
   setPixelRatio: (pixelRatio: number) => void;
   onResult: (outcome: 'catch' | FailureKind, peakTension: number, nearSnaps: number, hookedAt: number) => void;
   onRestoringChange: (restoring: boolean) => void;
+  onFocusActiveChange: (active: boolean) => void;
 };
+
+const ASSETS = {
+  waterNormal: '/assets/textures/water_normal.webp',
+  dockPlanks: '/assets/textures/dock_planks.webp',
+  fishGeneric: '/assets/sprites/fish_generic.webp',
+  lureDefault: '/assets/sprites/lure_default.webp'
+} as const;
 
 export function GameClient() {
   const searchParams = useSearchParams();
@@ -106,8 +121,11 @@ export function GameClient() {
   const [landscape, setLandscape] = useState(false);
   const [viewport, setViewport] = useState<ViewportSize | null>(null);
   const [resultDismissReady, setResultDismissReady] = useState(false);
+  const [focusActive, setFocusActive] = useState(false);
+  const [focusIndicators, setFocusIndicators] = useState<FocusIndicator[]>([]);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const pointerRef = useRef<PointerSnapshot | null>(null);
+  const focusTimeoutRef = useRef<number | null>(null);
   const startedRef = useRef(false);
   const audio = useRef(new ProceduralAudio());
   const setGameState = useGameStore((state) => state.setGameState);
@@ -134,6 +152,14 @@ export function GameClient() {
     setGameState({ kind: 'splash' });
     setFishState(runtime.current.fish.state);
   }, [seed, setFishState, setGameState, setSeed]);
+
+  useEffect(() => {
+    return () => {
+      if (focusTimeoutRef.current !== null) {
+        window.clearTimeout(focusTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -271,6 +297,43 @@ export function GameClient() {
     };
   }, [gameState]);
 
+  const clearFocusHold = useCallback(() => {
+    if (focusTimeoutRef.current !== null) {
+      window.clearTimeout(focusTimeoutRef.current);
+      focusTimeoutRef.current = null;
+    }
+  }, []);
+
+  const armFocusHold = useCallback((pointerId: number, x: number, y: number) => {
+    clearFocusHold();
+
+    if (runtime.current.focusCooldownUntil > performance.now()) {
+      return;
+    }
+
+    focusTimeoutRef.current = window.setTimeout(() => {
+      const pointer = pointerRef.current;
+      const state = runtime.current.state.kind;
+
+      if (!pointer || pointer.id !== pointerId || pointer.mode !== 'pending_lure' || (state !== 'scouting' && state !== 'lure_idle')) {
+        return;
+      }
+
+      const now = performance.now();
+      runtime.current.focusUntil = now + TUNING.input.focusDurationMs;
+      runtime.current.focusCooldownUntil = runtime.current.focusUntil + TUNING.input.focusCooldownMs;
+      setFocusActive(true);
+      setFocusIndicators((value) => [...value, { id: createId(), x, y, createdAt: now }]);
+      track({ type: 'focus_used' });
+
+      window.setTimeout(() => {
+        if (runtime.current.focusUntil <= performance.now()) {
+          setFocusActive(false);
+        }
+      }, TUNING.input.focusDurationMs);
+    }, TUNING.input.focusHoldMs);
+  }, [clearFocusHold]);
+
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!started || runtime.current.state.kind === 'splash') {
       return;
@@ -291,8 +354,10 @@ export function GameClient() {
       downAt: performance.now(),
       startRodOffset: { ...runtime.current.rodOffset }
     };
+    armFocusHold(event.pointerId, event.clientX, event.clientY);
 
     if (runtime.current.state.kind === 'hooked') {
+      clearFocusHold();
       pointerRef.current.mode = 'reeling';
       runtime.current.reeling = true;
       setReeling(true);
@@ -305,6 +370,7 @@ export function GameClient() {
     }
 
     if (runtime.current.state.kind === 'lure_idle' && viewport && isRodTouch(event.clientX, event.clientY, viewport)) {
+      clearFocusHold();
       pointerRef.current.mode = 'rod_control';
       runtime.current.rodControlActive = true;
       runtime.current.state = {
@@ -340,6 +406,10 @@ export function GameClient() {
 
     pointer.x = event.clientX;
     pointer.y = event.clientY;
+
+    if (Math.hypot(pointer.x - pointer.startX, pointer.y - pointer.startY) >= TUNING.input.tapMoveTolerancePx) {
+      clearFocusHold();
+    }
 
     if (pointer.mode === 'rod_control') {
       runtime.current.rodTargetOffset = clampRodOffset({
@@ -390,6 +460,7 @@ export function GameClient() {
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
     const pointer = pointerRef.current;
     pointerRef.current = null;
+    clearFocusHold();
 
     if (!started) {
       return;
@@ -609,6 +680,7 @@ export function GameClient() {
             setPixelRatio={setPixelRatio}
             onResult={finishResult}
             onRestoringChange={setRestoring}
+            onFocusActiveChange={setFocusActive}
           />
         </Suspense>
       </Canvas>
@@ -667,6 +739,28 @@ export function GameClient() {
           <span className="bite-halo-ring" />
         </span>
       ) : null}
+
+      {focusActive ? <div className="focus-vignette" aria-hidden="true" /> : null}
+
+      {focusIndicators.map((indicator) => {
+        const age = performance.now() - indicator.createdAt;
+        const opacity = Math.max(0, 1 - age / TUNING.input.focusCooldownMs);
+
+        if (opacity <= 0) {
+          return null;
+        }
+
+        return (
+          <span
+            key={indicator.id}
+            className="focus-ring"
+            style={{
+              opacity,
+              transform: `translate(${indicator.x}px, ${indicator.y}px) translate(-50%, -50%) scale(${1 + (1 - opacity) * 1.8})`
+            }}
+          />
+        );
+      })}
 
       {cuePrompt ? (
         <div className={`cue-prompt ${cuePrompt.kind}`} data-testid="cue-prompt">
@@ -778,11 +872,16 @@ export function GameClient() {
   }
 }
 
-function GameScene({ started, runtime, audio, setLinePoints, setRipples, setRodOffset, setPixelRatio, onResult, onRestoringChange }: SceneProps) {
+function GameScene({ started, runtime, audio, setLinePoints, setRipples, setRodOffset, setPixelRatio, onResult, onRestoringChange, onFocusActiveChange }: SceneProps) {
   const fishRef = useRef<THREE.Mesh>(null);
   const lureRef = useRef<THREE.Mesh>(null);
-  const waterRef = useRef<THREE.Mesh>(null);
   const { camera, gl } = useThree();
+  const [waterNormalTexture, dockTexture, fishTexture, lureTexture] = useLoader(THREE.TextureLoader, [
+    ASSETS.waterNormal,
+    ASSETS.dockPlanks,
+    ASSETS.fishGeneric,
+    ASSETS.lureDefault
+  ]);
   const setFishState = useGameStore((state) => state.setFishState);
   const setGameState = useGameStore((state) => state.setGameState);
   const setTension = useGameStore((state) => state.setTension);
@@ -792,10 +891,28 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setRodO
   const recordPerf = useSessionStore((state) => state.recordPerf);
   const recordPixelRatioDegradation = useSessionStore((state) => state.recordPixelRatioDegradation);
   const recordGlContextLoss = useSessionStore((state) => state.recordGlContextLoss);
+  const focusActiveRef = useRef(false);
 
   useEffect(() => {
     camera.lookAt(new THREE.Vector3(...TUNING.world.cameraTarget));
   }, [camera]);
+
+  useEffect(() => {
+    waterNormalTexture.wrapS = THREE.RepeatWrapping;
+    waterNormalTexture.wrapT = THREE.RepeatWrapping;
+    waterNormalTexture.repeat.set(2, 2);
+    waterNormalTexture.colorSpace = THREE.NoColorSpace;
+    waterNormalTexture.needsUpdate = true;
+
+    dockTexture.wrapS = THREE.RepeatWrapping;
+    dockTexture.wrapT = THREE.ClampToEdgeWrapping;
+    dockTexture.repeat.set(1, 1);
+    dockTexture.colorSpace = THREE.SRGBColorSpace;
+    dockTexture.needsUpdate = true;
+
+    fishTexture.colorSpace = THREE.SRGBColorSpace;
+    lureTexture.colorSpace = THREE.SRGBColorSpace;
+  }, [dockTexture, fishTexture, lureTexture, waterNormalTexture]);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -831,9 +948,11 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setRodO
     const now = performance.now();
     const current = runtime.current;
     const gameState = current.state;
+    const nextFocusActive = now < current.focusUntil;
 
-    if (waterRef.current) {
-      waterRef.current.rotation.z = Math.sin(now / TUNING.fish.cueShadowDurationMs) * TUNING.lure.lureWobbleAmplitude;
+    if (nextFocusActive !== focusActiveRef.current) {
+      focusActiveRef.current = nextFocusActive;
+      onFocusActiveChange(nextFocusActive);
     }
 
     if (gameState.kind === 'casting') {
@@ -1011,8 +1130,9 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setRodO
       lureRef.current.visible = current.lureVisible;
       lureRef.current.position.set(current.lurePos.x, current.lureY, current.lurePos.z);
       const flashing = now < current.lureFlashUntil;
-      const material = lureRef.current.material as THREE.MeshStandardMaterial;
-      material.emissiveIntensity = flashing ? TUNING.audio.sfxGain : TUNING.lure.lureWobbleAmplitude;
+      const material = lureRef.current.material as THREE.MeshBasicMaterial;
+      material.opacity = flashing ? 1 : 0.86;
+      material.color.set(flashing ? '#f1d47a' : '#ffffff');
     }
 
     current.line = updateVerletLine(current.line, rodTipForRuntime(current, hookImpulseFor(current, now)), current.lurePos, dt, current.tension);
@@ -1027,26 +1147,94 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setRodO
   return (
     <>
       <color attach="background" args={['#1a2b30']} />
-      <ambientLight intensity={1.1} />
-      <directionalLight position={[2.4, 5, 3]} intensity={1.7} />
-      <mesh ref={waterRef} renderOrder={0} rotation={[-Math.PI / 2, 0, 0]} position={[0, TUNING.world.waterY, 0]}>
-        <planeGeometry args={[TUNING.world.pondWidthM, TUNING.world.pondHeightM, TUNING.world.waterSegments, TUNING.world.waterSegments]} />
-        <meshStandardMaterial color="#2f4948" roughness={0.75} metalness={0.05} transparent opacity={0.82} depthWrite={false} />
-      </mesh>
-      <Dock />
+      <fog attach="fog" args={['#1a2b30', 10, 18]} />
+      <ambientLight intensity={0.9} />
+      <directionalLight position={[2.4, 5, 3]} intensity={1.35} />
+      <BackgroundCard />
+      <PondWater runtime={runtime} normalMap={waterNormalTexture} />
+      <Reeds />
+      <Dock texture={dockTexture} />
       <mesh ref={fishRef} renderOrder={1} rotation={[-Math.PI / 2, 0, 0]} position={[TUNING.world.fishStart.x, TUNING.world.fishDepthY, TUNING.world.fishStart.z]}>
-        <circleGeometry args={[1, TUNING.world.rippleSegments]} />
-        <meshBasicMaterial color="#0a0e10" transparent opacity={TUNING.world.fishCueOpacity} depthWrite={false} />
+        <planeGeometry args={[1, 1]} />
+        <meshBasicMaterial map={fishTexture} color="#1a1a1a" transparent opacity={TUNING.world.fishCueOpacity} depthWrite={false} />
       </mesh>
-      <mesh ref={lureRef} visible={false} position={[TUNING.world.lureStart.x, TUNING.world.lureSurfaceY, TUNING.world.lureStart.z]}>
-        <sphereGeometry args={[TUNING.lure.lureRadiusM, 16, 12]} />
-        <meshStandardMaterial color="#6a7a45" emissive="#c8a85c" emissiveIntensity={TUNING.lure.lureWobbleAmplitude} />
+      <mesh ref={lureRef} visible={false} renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[TUNING.world.lureStart.x, TUNING.world.lureSurfaceY, TUNING.world.lureStart.z]}>
+        <planeGeometry args={[TUNING.lure.lureRadiusM * 2.6, TUNING.lure.lureRadiusM * 1.65]} />
+        <meshBasicMaterial map={lureTexture} transparent depthWrite={false} />
       </mesh>
     </>
   );
 }
 
-function Dock() {
+function PondWater({ runtime, normalMap }: { runtime: React.MutableRefObject<Runtime>; normalMap: THREE.Texture }) {
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const uniforms = useMemo(() => ({
+    uTime: { value: 0 },
+    uFocus: { value: 0 },
+    uNormalMap: { value: normalMap },
+    uDeep: { value: new THREE.Color('#1a2b30') },
+    uShallow: { value: new THREE.Color('#2f4948') },
+    uMoonlight: { value: new THREE.Color('#c8c4b2') },
+    uGlareReduction: { value: TUNING.input.focusGlareReduction }
+  }), [normalMap]);
+
+  useFrame((_, dt) => {
+    const focused = performance.now() < runtime.current.focusUntil;
+    uniforms.uFocus.value = focused ? 1 : 0;
+    uniforms.uTime.value += dt * (focused ? TUNING.input.focusWaterSpeedMultiplier : 1);
+  });
+
+  return (
+    <mesh renderOrder={0} rotation={[-Math.PI / 2, 0, 0]} position={[0, TUNING.world.waterY, 0]}>
+      <planeGeometry args={[TUNING.world.pondWidthM, TUNING.world.pondHeightM, TUNING.world.waterSegments, TUNING.world.waterSegments]} />
+      <shaderMaterial
+        ref={materialRef}
+        uniforms={uniforms}
+        transparent
+        depthWrite={false}
+        vertexShader={`
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            vec3 p = position;
+            p.z += sin((position.x * 1.4) + (position.y * 0.7)) * 0.018;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+          }
+        `}
+        fragmentShader={`
+          uniform float uTime;
+          uniform float uFocus;
+          uniform sampler2D uNormalMap;
+          uniform vec3 uDeep;
+          uniform vec3 uShallow;
+          uniform vec3 uMoonlight;
+          uniform float uGlareReduction;
+          varying vec2 vUv;
+
+          void main() {
+            vec2 flowA = vUv * 2.0 + vec2(uTime * 0.018, uTime * 0.007);
+            vec2 flowB = vUv * 1.15 + vec2(-uTime * 0.009, uTime * 0.012);
+            vec3 normalA = texture2D(uNormalMap, flowA).rgb * 2.0 - 1.0;
+            vec3 normalB = texture2D(uNormalMap, flowB).rgb * 2.0 - 1.0;
+            vec3 normal = normalize(vec3(normalA.xy * 0.58 + normalB.xy * 0.28, 1.0));
+            float depth = smoothstep(0.02, 0.92, vUv.y);
+            float shore = smoothstep(0.0, 0.18, vUv.x) * smoothstep(1.0, 0.82, vUv.x) * smoothstep(0.0, 0.14, vUv.y) * smoothstep(1.0, 0.86, vUv.y);
+            float fresnel = pow(1.0 - max(normal.z, 0.0), 2.0);
+            float focusGlare = 0.24 * (1.0 - uGlareReduction);
+            float glint = pow(max(normal.x * 0.65 + normal.y * 0.35, 0.0), 2.0) * mix(0.36, focusGlare, uFocus);
+            float wash = 0.04 + 0.035 * sin((vUv.x + vUv.y) * 8.0 + uTime * 0.24);
+            vec3 water = mix(uShallow * 1.18, uDeep * 1.08, depth);
+            water = mix(water, uMoonlight, fresnel * mix(0.24, 0.1, uFocus) + glint + wash);
+            water = mix(water * 0.9, water, shore);
+            gl_FragColor = vec4(water, 1.0);
+          }
+        `}
+      />
+    </mesh>
+  );
+}
+
+function Dock({ texture }: { texture: THREE.Texture }) {
   return (
     <group position={[0, TUNING.world.dockY, TUNING.world.dockZ]}>
       {Array.from({ length: TUNING.world.dockPlankCount }, (_, index) => {
@@ -1055,11 +1243,106 @@ function Dock() {
         return (
           <mesh key={index} position={[x, 0, 0]}>
             <boxGeometry args={[width, TUNING.world.dockThicknessM, TUNING.world.dockLengthM]} />
-            <meshStandardMaterial color="#6b4a32" roughness={0.86} />
+            <meshStandardMaterial map={texture} color="#d0a06d" roughness={0.88} />
           </mesh>
         );
       })}
+      <mesh position={[0, -0.04, -TUNING.world.dockLengthM * 0.46]}>
+        <boxGeometry args={[TUNING.world.dockWidthM + 0.16, TUNING.world.dockThicknessM * 0.72, 0.12]} />
+        <meshStandardMaterial color="#4f3422" roughness={0.9} />
+      </mesh>
     </group>
+  );
+}
+
+function Reeds() {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const reedPositions = useMemo(() => {
+    const positions: Array<{ x: number; z: number; h: number; s: number }> = [];
+    const rng = seededRandom('m2-reeds');
+
+    for (let index = 0; index < 44; index += 1) {
+      const side = index % 3;
+      const x = side === 0
+        ? -TUNING.world.pondWidthM * 0.5 + rng() * 0.45
+        : side === 1
+          ? TUNING.world.pondWidthM * 0.5 - rng() * 0.45
+          : (rng() - 0.5) * TUNING.world.pondWidthM;
+      const z = side === 2
+        ? TUNING.world.pondHeightM * 0.5 - rng() * 0.7
+        : -TUNING.world.pondHeightM * 0.2 + rng() * TUNING.world.pondHeightM * 0.72;
+      positions.push({ x, z, h: 0.55 + rng() * 0.75, s: rng() * Math.PI * 2 });
+    }
+
+    return positions;
+  }, []);
+
+  useFrame(({ clock }) => {
+    const mesh = meshRef.current;
+
+    if (!mesh) {
+      return;
+    }
+
+    const matrix = new THREE.Matrix4();
+    const quat = new THREE.Quaternion();
+    const scaleVec = new THREE.Vector3();
+
+    reedPositions.forEach((reed, index) => {
+      const sway = Math.sin(clock.elapsedTime * 0.7 + reed.s) * 0.08;
+      quat.setFromEuler(new THREE.Euler(sway, reed.s, 0));
+      scaleVec.set(0.08, reed.h, 0.08);
+      matrix.compose(new THREE.Vector3(reed.x, TUNING.world.waterY + reed.h * 0.24, reed.z), quat, scaleVec);
+      mesh.setMatrixAt(index, matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh ref={meshRef} args={[undefined, undefined, reedPositions.length]} frustumCulled>
+      <coneGeometry args={[1, 1, 5]} />
+      <meshStandardMaterial color="#4a5d3a" roughness={0.92} />
+    </instancedMesh>
+  );
+}
+
+function BackgroundCard() {
+  const texture = useMemo(() => {
+    if (typeof document === 'undefined') {
+      return new THREE.Texture();
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+
+    if (ctx) {
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      gradient.addColorStop(0, '#172629');
+      gradient.addColorStop(1, '#223732');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'rgba(74, 93, 58, 0.78)';
+      for (let index = 0; index < 54; index += 1) {
+        const x = (index * 37) % canvas.width;
+        const h = 42 + ((index * 19) % 80);
+        ctx.fillRect(x, canvas.height - h, 4 + (index % 4), h);
+      }
+      ctx.fillStyle = 'rgba(200, 196, 178, 0.1)';
+      ctx.fillRect(0, 34, canvas.width, 3);
+    }
+
+    const map = new THREE.CanvasTexture(canvas);
+    map.colorSpace = THREE.SRGBColorSpace;
+    return map;
+  }, []);
+
+  return (
+    <mesh position={[0, 1.18, TUNING.world.pondHeightM * 0.5 + 0.15]} rotation={[-0.22, 0, 0]}>
+      <planeGeometry args={[TUNING.world.pondWidthM * 1.28, 2.4]} />
+      <meshBasicMaterial map={texture} color="#c8c4b2" />
+    </mesh>
   );
 }
 

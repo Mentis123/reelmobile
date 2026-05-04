@@ -21,9 +21,11 @@ export function DevGate({ checklist }: DevGateProps) {
   const [devInfo, setDevInfo] = useState<DevInfoResponse | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     let ignore = false;
+    setMounted(true);
 
     async function loadDevInfo() {
       const response = await fetch('/api/dev-info', { cache: 'no-store' });
@@ -50,14 +52,14 @@ export function DevGate({ checklist }: DevGateProps) {
   }, []);
 
   const gameUrl = useMemo(() => {
-    if (typeof window === 'undefined') {
+    if (!mounted || typeof window === 'undefined') {
       return '';
     }
 
     const host = devInfo?.localIp ?? window.location.hostname;
     const port = devInfo?.port ? `:${devInfo.port}` : '';
     return `${window.location.protocol}//${host}${port}/game`;
-  }, [devInfo]);
+  }, [devInfo, mounted]);
 
   const candidateTag = devInfo?.candidateTag ?? CURRENT_CANDIDATE_TAG;
   const approvedTag = approvedTagFor(candidateTag);

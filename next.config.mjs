@@ -3,10 +3,14 @@ function currentCandidateTag() {
     return process.env.NEXT_PUBLIC_REEL_CANDIDATE_TAG;
   }
 
-  return 'v0.1.5-hook-guard-candidate';
+  return 'v0.2-pond-candidate';
 }
 
 function currentMilestone(tag) {
+  if (tag.startsWith('v0.2-')) {
+    return 'm2';
+  }
+
   if (tag.startsWith('v0.1.5-')) {
     return 'm1.5';
   }

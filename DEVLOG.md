@@ -314,3 +314,32 @@ Append after every milestone. Format:
 **Next:**
 - Recheck on iPhone that bite-window taps set the hook even with normal thumb drift, and that deliberate water drags still recast after the lure is idle.
 - If that passes, human may create the approved tag for this follow-up before starting Phase B.
+
+---
+
+## v0.2-pond-candidate (2026-05-04)
+**Shipped:**
+- Started from latest `main` after human `v0.1.5-hook-guard-approved`.
+- Added M2 core assets under `public/assets`: water normal texture, dock plank texture, generic fish sprite, default lure sprite, and SVG wordmark.
+- Replaced grey-box water with a lightweight custom shader using depth fade, broad moonlight glints, normal-map ripples, and Focus-mode glare reduction.
+- Replaced grey-box dock/fish/lure visuals with textured dock planks and transparent sprite planes while preserving the existing single-fish gameplay loop.
+- Added instanced low-poly reeds, a painted far-bank card, and M2 `/dev` checklist/candidate metadata.
+- Added press-and-hold Focus Water behavior using tunable constants in `src/game/tuning/tuning.ts`.
+- Added M2 Playwright visual smoke coverage with mobile and portrait-desktop screenshots plus canvas pixel sampling.
+- M2 validation passed: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`, and `pnpm test:e2e`.
+
+**Cut:**
+- Fish variety, gear variants, journal, economy, progression, map, weather, audio replacement, new systems, and any `14_DO_NOT_BUILD.md` scope.
+- No `*-approved` tag. Human iPhone review remains the gate.
+- Decorative art remains deliberately light: no extra rocks, particles, weather, or expanded environment detail.
+
+**Discovered:**
+- Running multiple WebKit canvas tests in parallel made the tap smoke flaky, so Playwright now runs the mobile Safari smoke project with one worker.
+- The sandbox can report port 3000 as occupied without a visible `next dev` process after interrupted manual runs; Playwright now uses port 3001 to avoid that collision.
+- The generated asset payload is small, about 68 KB total for M2 assets, and the scene stays within debug budget in automated smoke: 10 draw calls, 2,784 triangles, and 4 textures.
+- Automated visual checks can prove the canvas is nonblank and framed, but they cannot judge whether the pond feels good on a real iPhone.
+
+**Next:**
+- STOP for human iPhone review through `/dev` QR.
+- Review the M2 checklist on a real iPhone: visual coherence, iPhone 13 60fps target, Focus glare reduction, reed/dock/water palette fit, and preservation of the full fishing loop.
+- Only a human may create `v0.2-pond-approved` after real-device review passes.
