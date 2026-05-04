@@ -415,3 +415,19 @@ Append after every milestone. Format:
 - STOP for human iPhone review through `/dev` QR.
 - Review the M3 checklist: five silhouettes, distinct cue signatures, same-species personality differences, fish density, and preservation of the M1/M2 fishing loop.
 - Only a human may create `v0.3-fish-variety-approved` after real-device review passes.
+
+---
+
+## fix-fishing-game-yczS4 (pending)
+**Shipped:**
+- Switched the fishing line and rod tip overlay from a top-down `worldToScreen` approximation to a real `THREE.Camera.project` projection so the line endpoint visually matches the 3D lure mesh.
+- Locked `lurePos` exactly to `fish.position` while hooked so the lure stays glued to the fish during the reel-in.
+- Fish silhouette now slerps toward the heading derived from its velocity (with a `fishFacingMinSpeed` floor and `fishFacingTurnRate` for smoothing) so it always swims forward instead of moonwalking.
+- Anchored the rod butt + reel to a fixed viewport-relative screen position (`rodScreenButtXRatio`, `rodScreenButtBottomMarginPx`) so the whole reel setup is visible inside Mobile Safari's chrome.
+- Redesigned the rod stroke with a brown-to-gold gradient and redrew the reel as a layered hub + crank handle; the fishing line is now hidden during scouting/aiming/result so the idle pole no longer sports a white whisker on the tip.
+**Cut:**
+- No new physics for catenary sag — the verlet still runs in 2D `(x, z)` and we only add a sin-shaped y-axis sag at projection time.
+**Discovered:**
+- The previous `worldToScreen` projection was the root cause of every "line ends in the wrong place" bug; aim-preview dots still use it but they tolerate the offset.
+**Next:**
+- Real-device iPhone review of: (a) line/lure alignment during cast and fight, (b) fish heading through wander/inspect/flee, (c) full reel visibility under Safari's bottom toolbar, (d) idle pole presentation.

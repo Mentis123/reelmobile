@@ -90,11 +90,22 @@ type ViewportSize = {
   height: number;
 };
 
+type ScreenPoint = {
+  x: number;
+  y: number;
+};
+
+type Overlay = {
+  linePoints: ScreenPoint[];
+  rodTip: ScreenPoint;
+  lure: ScreenPoint;
+};
+
 type SceneProps = {
   started: boolean;
   runtime: React.MutableRefObject<Runtime>;
   audio: React.MutableRefObject<ProceduralAudio>;
-  setLinePoints: (points: Vec2[]) => void;
+  setOverlay: React.Dispatch<React.SetStateAction<Overlay>>;
   setRipples: React.Dispatch<React.SetStateAction<Ripple[]>>;
   ripples: Ripple[];
   setRodOffset: (offset: Vec2) => void;
@@ -118,7 +129,7 @@ export function GameClient() {
   const [started, setStarted] = useState(false);
   const [debugOpen, setDebugOpen] = useState(queryDebug || (process.env.NODE_ENV === 'development' && TUNING.ui.debugDefaultDev));
   const [aimPreview, setAimPreview] = useState<AimPreview | null>(null);
-  const [linePoints, setLinePoints] = useState<Vec2[]>([]);
+  const [overlay, setOverlay] = useState<Overlay>({ linePoints: [], rodTip: { x: 0, y: 0 }, lure: { x: 0, y: 0 } });
   const [ripples, setRipples] = useState<Ripple[]>([]);
   const [rodOffset, setRodOffset] = useState<Vec2>({ x: 0, z: 0 });
   const [pixelRatio, setPixelRatio] = useState(1);
@@ -281,7 +292,7 @@ export function GameClient() {
     const nextRuntime = createRuntime(seed, spawnIndexRef.current);
     nextRuntime.state = { kind: 'scouting', sinceMs: performance.now() };
     runtime.current = nextRuntime;
-    setLinePoints([]);
+    setOverlay({ linePoints: [], rodTip: { x: 0, y: 0 }, lure: { x: 0, y: 0 } });
     setRipples([]);
     setRodOffset({ x: 0, z: 0 });
     setReeling(false);
@@ -628,10 +639,6 @@ export function GameClient() {
     });
   }, [aimPreview, viewport]);
 
-  const lineScreenPoints = useMemo(
-    () => viewport ? linePoints.map((point) => worldToScreen(point, viewport)) : [],
-    [linePoints, viewport]
-  );
   const lineColor = tension > TUNING.tension.nearSnapThreshold
     ? TUNING.line.lineSnapColour
     : tension >= TUNING.tension.tensionSweetSpotMin
@@ -646,9 +653,24 @@ export function GameClient() {
       ? TUNING.line.lineTautWidthPx
       : TUNING.line.lineSlackWidthPx) + hookImpulse * TUNING.line.lineHookWidthBoostPx;
 
-  const biteHaloPos = gameState.kind === 'bite_window' && viewport
-    ? worldToScreen(gameState.lurePos, viewport)
-    : null;
+  const showLine = gameState.kind === 'casting'
+    || gameState.kind === 'lure_idle'
+    || gameState.kind === 'rod_control'
+    || gameState.kind === 'bite_window'
+    || gameState.kind === 'hooked';
+
+  const rodButtScreen = useMemo<ScreenPoint | null>(() => {
+    if (!viewport) {
+      return null;
+    }
+
+    return {
+      x: viewport.width * TUNING.world.rodScreenButtXRatio,
+      y: viewport.height - TUNING.world.rodScreenButtBottomMarginPx
+    };
+  }, [viewport]);
+
+  const biteHaloPos = gameState.kind === 'bite_window' ? overlay.lure : null;
   const cuePrompt: { kind: 'tap' | 'hold' | 'ease'; text: string } | null =
     gameState.kind === 'bite_window'
       ? { kind: 'tap', text: 'Tap!' }
@@ -683,7 +705,7 @@ export function GameClient() {
             started={started}
             runtime={runtime}
             audio={audio}
-            setLinePoints={setLinePoints}
+            setOverlay={setOverlay}
             setRipples={setRipples}
             ripples={ripples}
             setRodOffset={setRodOffset}
@@ -695,24 +717,35 @@ export function GameClient() {
         </Suspense>
       </Canvas>
 
-      {viewport ? (
+      {viewport && rodButtScreen && started && overlay.rodTip.y > 0 ? (
         <svg className="line-overlay" aria-hidden="true">
-          <polyline
-            points={lineScreenPoints.map((point) => `${point.x},${point.y}`).join(' ')}
-            fill="none"
-            stroke={lineColor}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={lineWidth}
-          />
+          {showLine && overlay.linePoints.length > 1 ? (
+            <polyline
+              points={overlay.linePoints.map((point) => `${point.x},${point.y}`).join(' ')}
+              fill="none"
+              stroke={lineColor}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={lineWidth}
+            />
+          ) : null}
+          <defs>
+            <linearGradient id="rod-gradient" gradientUnits="userSpaceOnUse"
+              x1={rodButtScreen.x} y1={rodButtScreen.y} x2={overlay.rodTip.x} y2={overlay.rodTip.y}>
+              <stop offset="0%" stopColor="#2a1a10" />
+              <stop offset="35%" stopColor="#5a3e28" />
+              <stop offset="78%" stopColor="#8a6a48" />
+              <stop offset="100%" stopColor="#c2a878" />
+            </linearGradient>
+          </defs>
           <path
-            d={rodPathFor(tension, viewport, hookImpulse, rodOffset)}
+            d={rodPathFromScreen(rodButtScreen, overlay.rodTip, hookImpulse)}
             fill="none"
-            stroke="var(--dock-warm)"
+            stroke="url(#rod-gradient)"
             strokeLinecap="round"
-            strokeWidth={TUNING.line.lineSnapWidthPx}
+            strokeWidth={TUNING.line.lineSnapWidthPx + 2.6}
           />
-          <RodReel viewport={viewport} rodOffset={rodOffset} />
+          <RodReel rodButtScreen={rodButtScreen} rodTipScreen={overlay.rodTip} />
         </svg>
       ) : null}
 
@@ -865,10 +898,15 @@ export function GameClient() {
   }
 }
 
-function GameScene({ started, runtime, audio, setLinePoints, setRipples, ripples, setRodOffset, setPixelRatio, onResult, onRestoringChange, onFocusActiveChange }: SceneProps) {
+function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, setRodOffset, setPixelRatio, onResult, onRestoringChange, onFocusActiveChange }: SceneProps) {
   const fishRef = useRef<THREE.Mesh>(null);
   const lureRef = useRef<THREE.Mesh>(null);
-  const { camera, gl } = useThree();
+  const { camera, gl, size } = useThree();
+  const projVecRef = useRef(new THREE.Vector3());
+  const fishQuatTargetRef = useRef(new THREE.Quaternion());
+  const fishQuatFlatRef = useRef(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2));
+  const fishYawRef = useRef(new THREE.Quaternion());
+  const fishFacingAngleRef = useRef<number | null>(null);
   const [waterNormalTexture, dockTexture, fishTexture, lureTexture] = useLoader(THREE.TextureLoader, [
     ASSETS.waterNormal,
     ASSETS.dockPlanks,
@@ -1130,6 +1168,19 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, ripples
         : TUNING.world.fishCueOpacity;
       material.opacity = baseOpacity * species.opacityMultiplier * fishDepthVisibility(current.fish.position);
       material.color.set(current.fish.state.kind === 'commit' || current.fish.state.kind === 'bite' ? '#202323' : '#111718');
+
+      const speed = Math.hypot(current.fish.velocity.x, current.fish.velocity.z);
+      if (speed > TUNING.fish.fishFacingMinSpeed || fishFacingAngleRef.current === null) {
+        const targetAngle = speed > TUNING.fish.fishFacingMinSpeed
+          ? Math.atan2(current.fish.velocity.z, -current.fish.velocity.x)
+          : (fishFacingAngleRef.current ?? 0);
+        fishFacingAngleRef.current = targetAngle;
+      }
+      const targetAngle = fishFacingAngleRef.current ?? 0;
+      fishYawRef.current.setFromAxisAngle(THREE_UP, targetAngle);
+      fishQuatTargetRef.current.copy(fishYawRef.current).multiply(fishQuatFlatRef.current);
+      const slerpAlpha = Math.min(1, dt * TUNING.fish.fishFacingTurnRate);
+      fishRef.current.quaternion.slerp(fishQuatTargetRef.current, slerpAlpha);
     }
 
     if (lureRef.current) {
@@ -1142,7 +1193,24 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, ripples
     }
 
     current.line = updateVerletLine(current.line, rodTipForRuntime(current, hookImpulseFor(current, now)), current.lurePos, dt, current.tension);
-    setLinePoints(current.line.points.map((point) => point.pos));
+
+    const projVec = projVecRef.current;
+    const lineSagBase = (1 - visualLineTensionFor(current.tension)) * TUNING.world.lineSagAmplitudeY;
+    const linePoints: ScreenPoint[] = current.line.points.map((point, index) => {
+      const t = index / (current.line.points.length - 1);
+      const segmentY = lerp(TUNING.world.rodTipY, current.lureY, t) - Math.sin(t * Math.PI) * lineSagBase;
+      projVec.set(point.pos.x, segmentY, point.pos.z);
+      return projectVecToScreen(projVec, camera, size);
+    });
+
+    const bend = rodTipFor(current.tension, hookImpulseFor(current, now));
+    projVec.set(bend.x + current.rodOffset.x, TUNING.world.rodTipY, bend.z + current.rodOffset.z);
+    const rodTipScreen = projectVecToScreen(projVec, camera, size);
+
+    projVec.set(current.lurePos.x, current.lureY, current.lurePos.z);
+    const lureScreen = projectVecToScreen(projVec, camera, size);
+
+    setOverlay({ linePoints, rodTip: rodTipScreen, lure: lureScreen });
     setRodOffset(current.rodOffset);
     setFishState(current.fish.state);
     setTension(current.tension);
@@ -1467,30 +1535,55 @@ function BackgroundCard() {
   );
 }
 
-function RodReel({ viewport, rodOffset }: { viewport: ViewportSize; rodOffset: Vec2 }) {
-  const reel = rodReelFor(viewport, rodOffset);
+function RodReel({ rodButtScreen, rodTipScreen }: { rodButtScreen: ScreenPoint; rodTipScreen: ScreenPoint }) {
+  const dx = rodTipScreen.x - rodButtScreen.x;
+  const dy = rodTipScreen.y - rodButtScreen.y;
+  const length = Math.max(1, Math.hypot(dx, dy));
+  const tx = dx / length;
+  const ty = dy / length;
+  const nx = -ty;
+  const ny = tx;
+  const reelDistance = TUNING.world.rodReelOffsetPx;
+  const cx = rodButtScreen.x + tx * 24;
+  const cy = rodButtScreen.y + ty * 24;
+  const reelX = cx + nx * reelDistance;
+  const reelY = cy + ny * reelDistance;
+  const handleX = reelX - tx * 5 + nx * 11;
+  const handleY = reelY - ty * 5 + ny * 11;
+  const knobX = handleX + nx * 5 - tx * 1;
+  const knobY = handleY + ny * 5 - ty * 1;
 
   return (
     <g className="rod-reel">
+      <line
+        x1={cx}
+        y1={cy}
+        x2={reelX + nx * 2}
+        y2={reelY + ny * 2}
+        stroke="#3a2718"
+        strokeLinecap="round"
+        strokeWidth="3"
+      />
       <circle
-        cx={reel.x}
-        cy={reel.y}
-        r="11"
-        fill="rgba(10, 14, 14, 0.45)"
+        cx={reelX}
+        cy={reelY}
+        r="13"
+        fill="rgba(20, 24, 24, 0.78)"
         stroke="var(--moonlight)"
         strokeWidth="2"
       />
-      <circle cx={reel.x} cy={reel.y} r="4" fill="var(--dock-warm)" />
+      <circle cx={reelX} cy={reelY} r="9" fill="rgba(40, 44, 44, 0.78)" />
+      <circle cx={reelX} cy={reelY} r="4.2" fill="var(--ui-gold)" />
       <line
-        x1={reel.x + 8}
-        y1={reel.y + 8}
-        x2={reel.x + 18}
-        y2={reel.y + 16}
+        x1={reelX}
+        y1={reelY}
+        x2={handleX}
+        y2={handleY}
         stroke="var(--moonlight)"
         strokeLinecap="round"
-        strokeWidth="2"
+        strokeWidth="2.2"
       />
-      <circle cx={reel.x + 20} cy={reel.y + 17} r="3" fill="var(--ui-gold)" />
+      <circle cx={knobX} cy={knobY} r="3.4" fill="var(--ui-gold)" stroke="rgba(20, 24, 24, 0.7)" strokeWidth="1" />
     </g>
   );
 }
@@ -1692,7 +1785,7 @@ function updateHookedContactPoint(runtime: Runtime, dt: number) {
     }
   }
 
-  runtime.lurePos = lerpVec(runtime.lurePos, runtime.fish.position, runtime.reeling ? 0.55 : 0.28);
+  runtime.lurePos = { x: runtime.fish.position.x, z: runtime.fish.position.z };
   runtime.lureY = TUNING.world.lureSinkDepthY;
 }
 
@@ -1767,6 +1860,26 @@ function average(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+const THREE_UP = new THREE.Vector3(0, 1, 0);
+
+function projectVecToScreen(vec: THREE.Vector3, camera: THREE.Camera, size: { width: number; height: number }): ScreenPoint {
+  vec.project(camera);
+  return {
+    x: (vec.x * 0.5 + 0.5) * size.width,
+    y: (-vec.y * 0.5 + 0.5) * size.height
+  };
+}
+
+function visualLineTensionFor(tension: number): number {
+  const range = TUNING.line.lineVisualTautFull - TUNING.line.lineVisualTautStart;
+
+  if (range <= 0) {
+    return tension;
+  }
+
+  return Math.min(1, Math.max(0, (tension - TUNING.line.lineVisualTautStart) / range));
+}
+
 function rodTipFor(tension: number, hookImpulse = 0): Vec2 {
   return {
     x: TUNING.world.rodTip.x - TUNING.world.rodBendMaxM * (tension + hookImpulse),
@@ -1791,26 +1904,19 @@ function canPendingTouchBecomeCast(runtime: Runtime): boolean {
   return runtime.state.kind === 'lure_idle' && runtime.lateHookUntil <= performance.now();
 }
 
-function rodPathFor(tension: number, viewport: ViewportSize, hookImpulse: number, rodOffset: Vec2): string {
-  const butt = worldToScreen(TUNING.world.rodButt, viewport);
-  const bentTip = rodTipFor(tension, hookImpulse);
-  const tip = worldToScreen({ x: bentTip.x + rodOffset.x, z: bentTip.z + rodOffset.z }, viewport);
+function rodPathFromScreen(butt: ScreenPoint, tip: ScreenPoint, hookImpulse: number): string {
+  const dx = tip.x - butt.x;
+  const dy = tip.y - butt.y;
+  const length = Math.max(1, Math.hypot(dx, dy));
+  const nx = -dy / length;
+  const ny = dx / length;
+  const bowAmount = length * 0.06 + hookImpulse * TUNING.ui.hookJerkScreenPx;
   const control = {
-    x: lerp(butt.x, tip.x, 0.55) - TUNING.world.rodBendMaxM * TUNING.ui.worldProjectScale * tension,
-    y: lerp(butt.y, tip.y, 0.55) - hookImpulse * TUNING.ui.hookJerkScreenPx
+    x: lerp(butt.x, tip.x, 0.55) + nx * bowAmount,
+    y: lerp(butt.y, tip.y, 0.55) + ny * bowAmount
   };
 
   return `M ${butt.x} ${butt.y} Q ${control.x} ${control.y} ${tip.x} ${tip.y}`;
-}
-
-function rodReelFor(viewport: ViewportSize, rodOffset: Vec2) {
-  const butt = worldToScreen(TUNING.world.rodButt, viewport);
-  const tip = worldToScreen({ x: TUNING.world.rodTip.x + rodOffset.x, z: TUNING.world.rodTip.z + rodOffset.z }, viewport);
-
-  return {
-    x: lerp(butt.x, tip.x, 0.34),
-    y: lerp(butt.y, tip.y, 0.34) + 12
-  };
 }
 
 function isRodTouch(screenX: number, screenY: number, viewport: ViewportSize): boolean {
