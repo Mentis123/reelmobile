@@ -33,6 +33,7 @@ type Runtime = {
   fish: FishSnapshot;
   rng: () => number;
   lurePos: Vec2;
+  lureVelocity: Vec2;
   lureY: number;
   lureVisible: boolean;
   lureMovedUntil: number;
@@ -573,6 +574,7 @@ export function GameClient() {
     };
     runtime.current.lureVisible = true;
     runtime.current.lurePos = TUNING.world.rodTip;
+    runtime.current.lureVelocity = { x: 0, z: 0 };
     runtime.current.lureY = TUNING.world.lureSurfaceY;
     sessionStore.recordCast();
     track({ type: 'cast' });
@@ -598,6 +600,7 @@ export function GameClient() {
       x: runtime.current.lurePos.x + (runtime.current.rng() - TUNING.lure.lureTwitchSidewaysRatio) * TUNING.lure.lureTwitchDistanceM,
       z: runtime.current.lurePos.z + TUNING.lure.lureTwitchDistanceM
     });
+    runtime.current.lureVelocity = { x: 0, z: 0 };
     runtime.current.state = { kind: 'lure_idle', lurePos: runtime.current.lurePos, sinceMs: now, lastTwitchAt: now };
     addRipple(runtime.current.lurePos, TUNING.lure.rippleRadiusOnTwitchM, false);
     audio.current.lureTwitch();
@@ -1636,6 +1639,7 @@ function createRuntime(seed: string, spawnIndex = 0): Runtime {
     fish,
     rng,
     lurePos,
+    lureVelocity: { x: 0, z: 0 },
     lureY: TUNING.world.lureSurfaceY,
     lureVisible: false,
     lureMovedUntil: 0,
@@ -1767,10 +1771,24 @@ function updateRodControl(runtime: Runtime, dt: number) {
     : Math.max(0, runtime.tension - TUNING.tension.tensionSlackFallRate * dt);
 
   if (runtime.rodControlActive && lineDistance > TUNING.lure.lureTwitchDistanceM) {
-    const pull = scale(normalize(lineVector), TUNING.input.rodControlLurePullMps * runtime.tension * dt);
-    runtime.lurePos = clampToFishableWater(add(runtime.lurePos, pull));
+    const desiredVelocity = scale(normalize(lineVector), TUNING.input.rodControlLurePullMps * runtime.tension);
+    runtime.lureVelocity = lerpVec(
+      runtime.lureVelocity,
+      desiredVelocity,
+      Math.min(1, dt * TUNING.input.rodControlLureAccel)
+    );
+  } else {
+    const decay = Math.exp(-TUNING.input.rodControlLureDamping * dt);
+    runtime.lureVelocity = scale(runtime.lureVelocity, decay);
+  }
+
+  const speed = Math.hypot(runtime.lureVelocity.x, runtime.lureVelocity.z);
+  if (speed > TUNING.input.rodControlLureMinSpeedMps) {
+    runtime.lurePos = clampToFishableWater(add(runtime.lurePos, scale(runtime.lureVelocity, dt)));
     runtime.lureMovedUntil = performance.now() + TUNING.lure.lureTwitchDurationMs;
     runtime.lureFlashUntil = performance.now() + TUNING.lure.lureFlashDurationMs;
+  } else {
+    runtime.lureVelocity = { x: 0, z: 0 };
   }
 }
 
