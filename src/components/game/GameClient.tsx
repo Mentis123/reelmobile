@@ -1933,10 +1933,15 @@ function rodPathFromScreen(butt: ScreenPoint, tip: ScreenPoint, hookImpulse: num
 }
 
 function isRodTouch(screenX: number, screenY: number, viewport: ViewportSize): boolean {
-  const butt = worldToScreen(TUNING.world.rodButt, viewport);
-  const tip = worldToScreen(TUNING.world.rodTip, viewport);
+  const buttX = viewport.width * TUNING.world.rodScreenButtXRatio;
+  const buttY = viewport.height * (1 - TUNING.world.rodScreenButtBottomRatio);
+  const tipY = buttY - viewport.height * 0.22;
 
-  return distancePointToSegment({ x: screenX, z: screenY }, { x: butt.x, z: butt.y }, { x: tip.x, z: tip.y }) <= TUNING.input.rodTouchRadiusPx;
+  return distancePointToSegment(
+    { x: screenX, z: screenY },
+    { x: buttX, z: buttY },
+    { x: buttX, z: tipY }
+  ) <= TUNING.input.rodTouchRadiusPx;
 }
 
 function distancePointToSegment(point: Vec2, start: Vec2, end: Vec2): number {
