@@ -53,7 +53,7 @@ export const TUNING = {
     cameraLookAtLerp: 0.08
   },
   input: {
-    castPowerMin: 0.15,
+    castPowerMin: 0.05,
     castPowerMax: 1,
     castMaxRangeM: 8,
     castVisibleHalfWidthM: 1.9,
