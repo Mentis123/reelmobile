@@ -285,6 +285,7 @@ export function GameClient() {
     runtime.current.state = { kind: 'result', outcome, storyText, shownAt: now, peakTension };
     runtime.current.reeling = false;
     runtime.current.tension = 0;
+    runtime.current.lateHookUntil = 0;
     setReeling(false);
     setTension(0);
     setGameState(runtime.current.state);
@@ -1000,6 +1001,10 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
     if (nextFocusActive !== focusActiveRef.current) {
       focusActiveRef.current = nextFocusActive;
       onFocusActiveChange(nextFocusActive);
+    }
+
+    if (gameState.kind === 'result') {
+      return;
     }
 
     if (gameState.kind === 'casting') {
