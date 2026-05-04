@@ -61,6 +61,7 @@ type Runtime = {
   highFpsSince: number;
   degradationLevel: number;
   pixelRatio: number;
+  aimTarget: Vec2 | null;
 };
 
 type Ripple = {
@@ -99,6 +100,7 @@ type Overlay = {
   linePoints: ScreenPoint[];
   rodTip: ScreenPoint;
   lure: ScreenPoint;
+  aimTarget: ScreenPoint | null;
 };
 
 type SceneProps = {
@@ -129,7 +131,7 @@ export function GameClient() {
   const [started, setStarted] = useState(false);
   const [debugOpen, setDebugOpen] = useState(queryDebug || (process.env.NODE_ENV === 'development' && TUNING.ui.debugDefaultDev));
   const [aimPreview, setAimPreview] = useState<AimPreview | null>(null);
-  const [overlay, setOverlay] = useState<Overlay>({ linePoints: [], rodTip: { x: 0, y: 0 }, lure: { x: 0, y: 0 } });
+  const [overlay, setOverlay] = useState<Overlay>({ linePoints: [], rodTip: { x: 0, y: 0 }, lure: { x: 0, y: 0 }, aimTarget: null });
   const [ripples, setRipples] = useState<Ripple[]>([]);
   const [rodOffset, setRodOffset] = useState<Vec2>({ x: 0, z: 0 });
   const [pixelRatio, setPixelRatio] = useState(1);
@@ -292,7 +294,7 @@ export function GameClient() {
     const nextRuntime = createRuntime(seed, spawnIndexRef.current);
     nextRuntime.state = { kind: 'scouting', sinceMs: performance.now() };
     runtime.current = nextRuntime;
-    setOverlay({ linePoints: [], rodTip: { x: 0, y: 0 }, lure: { x: 0, y: 0 } });
+    setOverlay({ linePoints: [], rodTip: { x: 0, y: 0 }, lure: { x: 0, y: 0 }, aimTarget: null });
     setRipples([]);
     setRodOffset({ x: 0, z: 0 });
     setReeling(false);
@@ -411,6 +413,7 @@ export function GameClient() {
         currentPx: { x: event.clientX, z: event.clientY },
         power: cast.power
       };
+      runtime.current.aimTarget = cast.target;
       setGameState(runtime.current.state);
       setAimPreview({ power: cast.power, target: cast.target });
     }
@@ -457,6 +460,7 @@ export function GameClient() {
         currentPx: { x: pointer.x, z: pointer.y },
         power: cast.power
       };
+      runtime.current.aimTarget = cast.target;
       setGameState(runtime.current.state);
       setAimPreview({ power: cast.power, target: cast.target });
       return;
@@ -472,6 +476,7 @@ export function GameClient() {
       currentPx: { x: pointer.x, z: pointer.y },
       power: cast.power
     };
+    runtime.current.aimTarget = cast.target;
     setGameState(runtime.current.state);
     setAimPreview({ power: cast.power, target: cast.target });
   };
@@ -537,6 +542,7 @@ export function GameClient() {
 
     const moved = Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY);
     setAimPreview(null);
+    runtime.current.aimTarget = null;
 
     if (moved < TUNING.input.tapMoveTolerancePx && runtime.current.state.kind === 'aiming') {
       if (runtime.current.lateHookUntil > performance.now()) {
@@ -621,12 +627,12 @@ export function GameClient() {
   }
 
   const previewDots = useMemo(() => {
-    if (!aimPreview || !viewport) {
+    if (!aimPreview || !overlay.aimTarget || overlay.rodTip.y <= 0) {
       return [];
     }
 
-    const start = worldToScreen(TUNING.world.rodTip, viewport);
-    const end = worldToScreen(aimPreview.target, viewport);
+    const start = overlay.rodTip;
+    const end = overlay.aimTarget;
 
     return Array.from({ length: TUNING.input.aimPreviewDots }, (_, index) => {
       const t = index / (TUNING.input.aimPreviewDots - 1);
@@ -637,7 +643,7 @@ export function GameClient() {
         scale: lerp(TUNING.input.aimPreviewDotMinScale, TUNING.input.aimPreviewDotMaxScale, t)
       };
     });
-  }, [aimPreview, viewport]);
+  }, [aimPreview, overlay.aimTarget, overlay.rodTip]);
 
   const lineColor = tension > TUNING.tension.nearSnapThreshold
     ? TUNING.line.lineSnapColour
@@ -666,7 +672,7 @@ export function GameClient() {
 
     return {
       x: viewport.width * TUNING.world.rodScreenButtXRatio,
-      y: viewport.height - TUNING.world.rodScreenButtBottomMarginPx
+      y: viewport.height * (1 - TUNING.world.rodScreenButtBottomRatio)
     };
   }, [viewport]);
 
@@ -743,7 +749,7 @@ export function GameClient() {
             fill="none"
             stroke="url(#rod-gradient)"
             strokeLinecap="round"
-            strokeWidth={TUNING.line.lineSnapWidthPx + 2.6}
+            strokeWidth={TUNING.world.rodScreenStrokeWidthPx}
           />
           <RodReel rodButtScreen={rodButtScreen} rodTipScreen={overlay.rodTip} />
         </svg>
@@ -1210,7 +1216,13 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
     projVec.set(current.lurePos.x, current.lureY, current.lurePos.z);
     const lureScreen = projectVecToScreen(projVec, camera, size);
 
-    setOverlay({ linePoints, rodTip: rodTipScreen, lure: lureScreen });
+    let aimTargetScreen: ScreenPoint | null = null;
+    if (current.aimTarget) {
+      projVec.set(current.aimTarget.x, TUNING.world.lureSurfaceY, current.aimTarget.z);
+      aimTargetScreen = projectVecToScreen(projVec, camera, size);
+    }
+
+    setOverlay({ linePoints, rodTip: rodTipScreen, lure: lureScreen, aimTarget: aimTargetScreen });
     setRodOffset(current.rodOffset);
     setFishState(current.fish.state);
     setTension(current.tension);
@@ -1651,7 +1663,8 @@ function createRuntime(seed: string, spawnIndex = 0): Runtime {
     lowFpsSince: 0,
     highFpsSince: 0,
     degradationLevel: 0,
-    pixelRatio: typeof window === 'undefined' ? 1 : Math.min(window.devicePixelRatio, TUNING.performance.pixelRatioCap)
+    pixelRatio: typeof window === 'undefined' ? 1 : Math.min(window.devicePixelRatio, TUNING.performance.pixelRatioCap),
+    aimTarget: null
   };
 }
 
@@ -1910,7 +1923,7 @@ function rodPathFromScreen(butt: ScreenPoint, tip: ScreenPoint, hookImpulse: num
   const length = Math.max(1, Math.hypot(dx, dy));
   const nx = -dy / length;
   const ny = dx / length;
-  const bowAmount = length * 0.06 + hookImpulse * TUNING.ui.hookJerkScreenPx;
+  const bowAmount = length * TUNING.world.rodScreenBowFraction + hookImpulse * TUNING.ui.hookJerkScreenPx;
   const control = {
     x: lerp(butt.x, tip.x, 0.55) + nx * bowAmount,
     y: lerp(butt.y, tip.y, 0.55) + ny * bowAmount
