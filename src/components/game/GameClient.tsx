@@ -107,6 +107,7 @@ export function GameClient() {
   const setFishState = useGameStore((state) => state.setFishState);
   const setSeed = useGameStore((state) => state.setSeed);
   const setReeling = useGameStore((state) => state.setReeling);
+  const setTension = useGameStore((state) => state.setTension);
   const sessionStore = useSessionStore();
   const gameState = useGameStore((state) => state.gameState);
   const fishState = useGameStore((state) => state.fishState);
@@ -188,8 +189,13 @@ export function GameClient() {
   }, [seed, sessionStore, setGameState]);
 
   const finishResult = useCallback((outcome: 'catch' | FailureKind, peakTension: number, nearSnaps: number, hookedAt: number) => {
+    if (runtime.current.state.kind === 'result') {
+      return;
+    }
+
     const now = Date.now();
     let storyText = failureStory(outcome);
+    audio.current.stopLoops();
 
     if (outcome === 'catch') {
       const catchEntry: Catch = {
@@ -224,10 +230,11 @@ export function GameClient() {
 
     runtime.current.state = { kind: 'result', outcome, storyText, shownAt: now, peakTension };
     runtime.current.reeling = false;
-    audio.current.stopLoops();
+    runtime.current.tension = 0;
     setReeling(false);
+    setTension(0);
     setGameState(runtime.current.state);
-  }, [sessionStore, setGameState, setReeling]);
+  }, [sessionStore, setGameState, setReeling, setTension]);
 
   const resetCast = useCallback(() => {
     const nextRuntime = createRuntime(seed);
@@ -1060,6 +1067,11 @@ function updateFight(runtime: Runtime, dt: number, onResult: SceneProps['onResul
     runtime.state = { ...runtime.state, peakTension: runtime.tension };
   }
 
+  if (runtime.fish.state.kind === 'landed') {
+    onResult('catch', runtime.state.peakTension, runtime.state.nearSnaps, runtime.state.hookedAt);
+    return;
+  }
+
   if (runtime.tension > TUNING.tension.nearSnapThreshold) {
     runtime.state = { ...runtime.state, nearSnaps: runtime.state.nearSnaps + 1 };
     audio.fishSplash(TUNING.audio.struggleSplashIntensity);
@@ -1079,9 +1091,6 @@ function updateFight(runtime: Runtime, dt: number, onResult: SceneProps['onResul
     return;
   }
 
-  if (runtime.fish.state.kind === 'landed') {
-    onResult('catch', runtime.state.peakTension, runtime.state.nearSnaps, runtime.state.hookedAt);
-  }
 }
 
 function updatePerformance(

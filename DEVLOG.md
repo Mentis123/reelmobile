@@ -230,3 +230,40 @@ Append after every milestone. Format:
 **Next:**
 - Retest deployed `main` on iPhone 16 Pro / iOS 18.7 / Chrome on iOS.
 - Confirm audio is audible immediately after the splash tap and that catch/failure outcomes are unambiguous.
+
+---
+
+## M1 catch/snap race fix (2026-05-04)
+**Shipped:**
+- Catch outcome now wins cleanly if landing and snap threshold happen on the same frame.
+- Result handling is idempotent so a second outcome cannot overwrite or add audio after the first result.
+- Result handling stops line/reel loops before playing catch/failure sounds and resets stored tension to zero.
+
+**Cut:**
+- No Phase B work.
+- No approval tag.
+
+**Discovered:**
+- At the catch/snap boundary, high-tension audio could leak into an otherwise successful `Caught.` result.
+
+**Next:**
+- Retest one final deployed build and, if the real-device checklist is good enough, call M1 complete for this candidate cycle.
+
+---
+
+## Phase A human testing complete (2026-05-04)
+**Shipped:**
+- Phase A M0 shell and M1 vertical slice candidate cycle completed with repeated real-device testing on iPhone 16 Pro / iOS 18.7 / Chrome on iOS.
+- Final repair pass resolved the reported catch/snap audio race before closing the session.
+- Repo is ready for a fresh session and next goal context after this pass is pushed.
+
+**Cut:**
+- No Phase B work.
+- No human `*-approved` tag was created in this agent session.
+
+**Discovered:**
+- The core M1 loop is good enough to stop this candidate cycle and move planning/work into a new session.
+
+**Next:**
+- Start a new session with the next explicit goal.
+- Use this DEVLOG and latest `main` as the starting point.
