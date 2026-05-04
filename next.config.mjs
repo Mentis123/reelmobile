@@ -3,7 +3,7 @@ function currentCandidateTag() {
     return process.env.NEXT_PUBLIC_REEL_CANDIDATE_TAG;
   }
 
-  return 'v0.2-pond-candidate';
+  return 'v0.2-pond-illusion-candidate';
 }
 
 function currentMilestone(tag) {

@@ -36,7 +36,7 @@ test('M0 shell routes load', async ({ context }) => {
   const dev = await openRoute(context, '/dev');
   await expect(dev.page.getByRole('heading', { name: 'Dev Gate' })).toBeVisible();
   await expect(dev.page.getByText('M2 pond visuals real-iPhone gate')).toBeVisible();
-  await expect(dev.page.getByText('v0.2-pond-candidate')).toBeVisible();
+  await expect(dev.page.getByText('v0.2-pond-illusion-candidate')).toBeVisible();
   expect(dev.errors).toEqual([]);
   await dev.page.close();
 });

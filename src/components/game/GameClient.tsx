@@ -92,6 +92,7 @@ type SceneProps = {
   audio: React.MutableRefObject<ProceduralAudio>;
   setLinePoints: (points: Vec2[]) => void;
   setRipples: React.Dispatch<React.SetStateAction<Ripple[]>>;
+  ripples: Ripple[];
   setRodOffset: (offset: Vec2) => void;
   setPixelRatio: (pixelRatio: number) => void;
   onResult: (outcome: 'catch' | FailureKind, peakTension: number, nearSnaps: number, hookedAt: number) => void;
@@ -676,6 +677,7 @@ export function GameClient() {
             audio={audio}
             setLinePoints={setLinePoints}
             setRipples={setRipples}
+            ripples={ripples}
             setRodOffset={setRodOffset}
             setPixelRatio={setPixelRatio}
             onResult={finishResult}
@@ -702,6 +704,7 @@ export function GameClient() {
             strokeLinecap="round"
             strokeWidth={TUNING.line.lineSnapWidthPx}
           />
+          <RodReel viewport={viewport} rodOffset={rodOffset} />
         </svg>
       ) : null}
 
@@ -712,24 +715,6 @@ export function GameClient() {
           style={{ transform: `translate(${dot.x}px, ${dot.y}px) scale(${dot.scale})` }}
         />
       ))}
-
-      {viewport ? ripples.map((ripple) => {
-        const point = worldToScreen(ripple.pos, viewport);
-        const age = performance.now() - ripple.createdAt;
-        const opacity = Math.max(0, 1 - age / ripple.durationMs);
-        return (
-          <span
-            key={ripple.id}
-            className={ripple.falseCue ? 'water-ripple false-cue' : 'water-ripple'}
-            style={{
-              width: ripple.radius * TUNING.ui.worldProjectScale,
-              height: ripple.radius * TUNING.ui.worldProjectScale,
-              opacity,
-              transform: `translate(${point.x}px, ${point.y}px) translate(-50%, -50%) scale(${1 + (1 - opacity)})`
-            }}
-          />
-        );
-      }) : null}
 
       {biteHaloPos ? (
         <span
@@ -872,7 +857,7 @@ export function GameClient() {
   }
 }
 
-function GameScene({ started, runtime, audio, setLinePoints, setRipples, setRodOffset, setPixelRatio, onResult, onRestoringChange, onFocusActiveChange }: SceneProps) {
+function GameScene({ started, runtime, audio, setLinePoints, setRipples, ripples, setRodOffset, setPixelRatio, onResult, onRestoringChange, onFocusActiveChange }: SceneProps) {
   const fishRef = useRef<THREE.Mesh>(null);
   const lureRef = useRef<THREE.Mesh>(null);
   const { camera, gl } = useThree();
@@ -1121,9 +1106,11 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setRodO
         1
       );
       const material = fishRef.current.material as THREE.MeshBasicMaterial;
-      material.opacity = current.fish.state.kind === 'commit' || current.fish.state.kind === 'bite'
+      const baseOpacity = current.fish.state.kind === 'commit' || current.fish.state.kind === 'bite'
         ? TUNING.world.fishCommitOpacity
         : TUNING.world.fishCueOpacity;
+      material.opacity = baseOpacity * fishDepthVisibility(current.fish.position);
+      material.color.set(current.fish.state.kind === 'commit' || current.fish.state.kind === 'bite' ? '#202323' : '#111718');
     }
 
     if (lureRef.current) {
@@ -1131,7 +1118,7 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setRodO
       lureRef.current.position.set(current.lurePos.x, current.lureY, current.lurePos.z);
       const flashing = now < current.lureFlashUntil;
       const material = lureRef.current.material as THREE.MeshBasicMaterial;
-      material.opacity = flashing ? 1 : 0.86;
+      material.opacity = flashing ? 1 : 0.95;
       material.color.set(flashing ? '#f1d47a' : '#ffffff');
     }
 
@@ -1152,15 +1139,16 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setRodO
       <directionalLight position={[2.4, 5, 3]} intensity={1.35} />
       <BackgroundCard />
       <PondWater runtime={runtime} normalMap={waterNormalTexture} />
+      <WaterRipples ripples={ripples} />
       <Reeds />
       <Dock texture={dockTexture} />
       <mesh ref={fishRef} renderOrder={1} rotation={[-Math.PI / 2, 0, 0]} position={[TUNING.world.fishStart.x, TUNING.world.fishDepthY, TUNING.world.fishStart.z]}>
         <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial map={fishTexture} color="#1a1a1a" transparent opacity={TUNING.world.fishCueOpacity} depthWrite={false} />
+        <meshBasicMaterial map={fishTexture} color="#111718" transparent opacity={TUNING.world.fishCueOpacity} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
       <mesh ref={lureRef} visible={false} renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[TUNING.world.lureStart.x, TUNING.world.lureSurfaceY, TUNING.world.lureStart.z]}>
-        <planeGeometry args={[TUNING.lure.lureRadiusM * 2.6, TUNING.lure.lureRadiusM * 1.65]} />
-        <meshBasicMaterial map={lureTexture} transparent depthWrite={false} />
+        <planeGeometry args={[TUNING.lure.lureRadiusM * 4.6, TUNING.lure.lureRadiusM * 2.7]} />
+        <meshBasicMaterial map={lureTexture} transparent depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
     </>
   );
@@ -1229,6 +1217,54 @@ function PondWater({ runtime, normalMap }: { runtime: React.MutableRefObject<Run
             gl_FragColor = vec4(water, 1.0);
           }
         `}
+      />
+    </mesh>
+  );
+}
+
+function WaterRipples({ ripples }: { ripples: Ripple[] }) {
+  return (
+    <group>
+      {ripples.map((ripple) => (
+        <WaterRipple key={ripple.id} ripple={ripple} />
+      ))}
+    </group>
+  );
+}
+
+function WaterRipple({ ripple }: { ripple: Ripple }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
+
+  useFrame(() => {
+    const age = performance.now() - ripple.createdAt;
+    const progress = clamp(age / ripple.durationMs, 0, 1);
+    const scaleValue = 0.42 + progress * 1.35;
+
+    if (meshRef.current) {
+      meshRef.current.scale.setScalar(scaleValue);
+    }
+
+    if (materialRef.current) {
+      materialRef.current.opacity = (1 - progress) * (ripple.falseCue ? 0.22 : 0.48);
+    }
+  });
+
+  return (
+    <mesh
+      ref={meshRef}
+      renderOrder={3}
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[ripple.pos.x, TUNING.world.waterY + 0.018, ripple.pos.z]}
+    >
+      <ringGeometry args={[ripple.radius * 0.74, ripple.radius, TUNING.world.rippleSegments]} />
+      <meshBasicMaterial
+        ref={materialRef}
+        color={ripple.falseCue ? '#c8c4b2' : '#d8d4c2'}
+        transparent
+        opacity={ripple.falseCue ? 0.22 : 0.48}
+        depthWrite={false}
+        side={THREE.DoubleSide}
       />
     </mesh>
   );
@@ -1343,6 +1379,34 @@ function BackgroundCard() {
       <planeGeometry args={[TUNING.world.pondWidthM * 1.28, 2.4]} />
       <meshBasicMaterial map={texture} color="#c8c4b2" />
     </mesh>
+  );
+}
+
+function RodReel({ viewport, rodOffset }: { viewport: ViewportSize; rodOffset: Vec2 }) {
+  const reel = rodReelFor(viewport, rodOffset);
+
+  return (
+    <g className="rod-reel">
+      <circle
+        cx={reel.x}
+        cy={reel.y}
+        r="11"
+        fill="rgba(10, 14, 14, 0.45)"
+        stroke="var(--moonlight)"
+        strokeWidth="2"
+      />
+      <circle cx={reel.x} cy={reel.y} r="4" fill="var(--dock-warm)" />
+      <line
+        x1={reel.x + 8}
+        y1={reel.y + 8}
+        x2={reel.x + 18}
+        y2={reel.y + 16}
+        stroke="var(--moonlight)"
+        strokeLinecap="round"
+        strokeWidth="2"
+      />
+      <circle cx={reel.x + 20} cy={reel.y + 17} r="3" fill="var(--ui-gold)" />
+    </g>
   );
 }
 
@@ -1593,6 +1657,16 @@ function rodPathFor(tension: number, viewport: ViewportSize, hookImpulse: number
   return `M ${butt.x} ${butt.y} Q ${control.x} ${control.y} ${tip.x} ${tip.y}`;
 }
 
+function rodReelFor(viewport: ViewportSize, rodOffset: Vec2) {
+  const butt = worldToScreen(TUNING.world.rodButt, viewport);
+  const tip = worldToScreen({ x: TUNING.world.rodTip.x + rodOffset.x, z: TUNING.world.rodTip.z + rodOffset.z }, viewport);
+
+  return {
+    x: lerp(butt.x, tip.x, 0.34),
+    y: lerp(butt.y, tip.y, 0.34) + 12
+  };
+}
+
 function isRodTouch(screenX: number, screenY: number, viewport: ViewportSize): boolean {
   const butt = worldToScreen(TUNING.world.rodButt, viewport);
   const tip = worldToScreen(TUNING.world.rodTip, viewport);
@@ -1631,6 +1705,16 @@ function hookImpulseFor(runtime: Runtime, now: number): number {
   }
 
   return (runtime.hookJerkUntil - now) / TUNING.timing.hookJerkMs;
+}
+
+function fishDepthVisibility(position: Vec2): number {
+  const depth = clamp(
+    (position.z - TUNING.world.fishableMinZ) / (TUNING.world.pondHeightM * 0.72),
+    0,
+    1
+  );
+
+  return lerp(TUNING.world.fishShallowOpacityMultiplier, TUNING.world.fishDeepOpacityMultiplier, depth);
 }
 
 function nowMs(): number {

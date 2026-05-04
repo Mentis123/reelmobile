@@ -343,3 +343,29 @@ Append after every milestone. Format:
 - STOP for human iPhone review through `/dev` QR.
 - Review the M2 checklist on a real iPhone: visual coherence, iPhone 13 60fps target, Focus glare reduction, reed/dock/water palette fit, and preservation of the full fishing loop.
 - Only a human may create `v0.2-pond-approved` after real-device review passes.
+
+---
+
+## v0.2-pond-illusion-candidate (2026-05-04)
+**Shipped:**
+- Addressed M2 human review feedback without adding new fish, gear, journal, economy, progression, map, weather, or systems.
+- Moved water ripples from screen-space HTML rings into 3D ring meshes on the water plane so they inherit camera perspective.
+- Recolored ripple cues from UI gold to moonlight/grey so surface disturbance does not read like HUD.
+- Added a simple visual reel to the existing rod overlay; this is presentation only, not a gear variant.
+- Increased the single generic fish patrol area and wander speed so it no longer lives in one obvious spot.
+- Made fish shadow/cue visibility fade by pond depth and lowered base fish cue opacity so deeper water hides fish better.
+- Enlarged and brightened the default lure sprite so it is readable after cast while preserving sink/twitch behavior.
+
+**Cut:**
+- Full strategic depth gameplay, lure-depth targeting, sonar-like visibility, fish variety, gear mechanics, and any roadmap expansion outside M2.
+- No approved tag. Human review still owns approval.
+
+**Discovered:**
+- The previous screen-space ripple layer broke the pond illusion because it ignored the fixed camera angle.
+- Fish perception needs depth-dependent visibility even before deeper depth strategy exists.
+- Current lure sink is a vertical visual/feel component, not yet a strategic water-column system.
+
+**Next:**
+- STOP for human iPhone review through `/dev` QR.
+- Specifically recheck ripple perspective, lure readability, fish cue subtlety, fish wandering breadth, rod/reel readability, and whether the pond still passes the M2 visual checklist.
+- Consider depth-as-strategy in a later explicit milestone only after the pond visual gate is approved.

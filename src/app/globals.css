@@ -236,8 +236,7 @@ code {
   overflow: visible;
 }
 
-.preview-dot,
-.water-ripple {
+.preview-dot {
   position: absolute;
   left: 0;
   top: 0;
@@ -251,17 +250,6 @@ code {
   border-radius: 999px;
   background: var(--ui-gold);
   box-shadow: 0 0 12px rgba(200, 168, 92, 0.62);
-}
-
-.water-ripple {
-  border: 2px solid rgba(200, 168, 92, 0.85);
-  border-radius: 999px;
-  box-shadow: 0 0 14px rgba(200, 168, 92, 0.32);
-}
-
-.water-ripple.false-cue {
-  border: 1px solid rgba(216, 212, 194, 0.3);
-  box-shadow: none;
 }
 
 .bite-halo {

@@ -42,9 +42,17 @@ export function createInitialFish(seedRand: () => number): FishSnapshot {
 }
 
 export function nextWanderTarget(rng: () => number): Vec2 {
+  const margin = TUNING.world.pondMarginRatio * TUNING.world.pondWidthM;
+
   return {
-    x: TUNING.world.fishStart.x + (rng() - 0.5) * TUNING.world.fishWanderRadiusM,
-    z: TUNING.world.fishStart.z + (rng() - 0.5) * TUNING.world.fishWanderRadiusM
+    x: Math.max(
+      -TUNING.world.pondWidthM * 0.5 + margin,
+      Math.min(TUNING.world.pondWidthM * 0.5 - margin, TUNING.world.fishStart.x + (rng() - 0.5) * TUNING.world.fishWanderRadiusM)
+    ),
+    z: Math.max(
+      TUNING.world.fishableMinZ,
+      Math.min(TUNING.world.pondHeightM * 0.5 - margin, TUNING.world.fishStart.z + (rng() - 0.5) * TUNING.world.fishWanderRadiusM)
+    )
   };
 }
 

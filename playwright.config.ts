@@ -8,12 +8,12 @@ export default defineConfig({
     timeout: 5_000
   },
   use: {
-    baseURL: 'http://127.0.0.1:3001',
+    baseURL: 'http://127.0.0.1:3101',
     trace: 'retain-on-failure'
   },
   webServer: {
-    command: 'pnpm exec next dev -p 3001',
-    url: 'http://127.0.0.1:3001',
+    command: 'pnpm exec next dev -p 3101',
+    url: 'http://127.0.0.1:3101',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000
   },
