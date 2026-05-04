@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { ProceduralAudio } from '@/game/audio/procedural';
 import { createInitialFish, type FishSnapshot, updateFish } from '@/game/fish/fishStateMachine';
 import { pickSpeciesCue, speciesTuning, type FishCueKind } from '@/game/fish/species';
-import { add, clamp, clampToPond, distance, easeOutCubic, lerp, lerpVec, normalize, scale, seededRandom, sub, type Vec2 } from '@/game/math/vec';
+import { add, clamp, clampToPond, distance, lerp, lerpVec, normalize, scale, seededRandom, sub, type Vec2 } from '@/game/math/vec';
 import { createId, dailySeed, type Catch, type Failure, useSessionStore } from '@/game/persistence/sessionStore';
 import { createVerletLine, type VerletLine, updateVerletLine } from '@/game/physics/verletLine';
 import { useGameStore } from '@/game/state/gameStore';
@@ -886,8 +886,7 @@ export function GameClient() {
       z: (endY - startY) / TUNING.input.dragPowerPixels
     };
     const dragLength = Math.hypot(drag.x, drag.z);
-    const normalizedPower = clamp(dragLength, TUNING.input.castPowerMin, TUNING.input.castPowerMax);
-    const power = easeOutCubic(normalizedPower);
+    const power = clamp(dragLength, TUNING.input.castPowerMin, TUNING.input.castPowerMax);
     const rawDirection = normalize(drag);
     const direction = {
       x: rawDirection.x,
