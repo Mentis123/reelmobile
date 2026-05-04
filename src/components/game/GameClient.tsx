@@ -1566,60 +1566,81 @@ function Foreshore() {
 
     const canvas = document.createElement('canvas');
     canvas.width = 512;
-    canvas.height = 128;
+    canvas.height = 256;
     const ctx = canvas.getContext('2d');
 
     if (ctx) {
+      // Canvas top = water edge of bank; bottom = player-side grass top.
       const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      gradient.addColorStop(0, '#1f2a26');
-      gradient.addColorStop(0.35, '#2c2a20');
-      gradient.addColorStop(1, '#181410');
+      gradient.addColorStop(0, '#2a3a32');
+      gradient.addColorStop(0.12, '#3a3a26');
+      gradient.addColorStop(0.4, '#4a4128');
+      gradient.addColorStop(0.7, '#3d4a26');
+      gradient.addColorStop(1, '#314026');
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      ctx.fillStyle = 'rgba(74, 93, 58, 0.55)';
-      for (let index = 0; index < 90; index += 1) {
-        const x = (index * 23) % canvas.width;
-        const y = 4 + ((index * 11) % 22);
-        ctx.fillRect(x, y, 3 + (index % 3), 6 + (index % 5));
-      }
+      // Wet shoreline darkening just below the water edge.
+      const wetline = ctx.createLinearGradient(0, 0, 0, 24);
+      wetline.addColorStop(0, 'rgba(20, 30, 32, 0.55)');
+      wetline.addColorStop(1, 'rgba(20, 30, 32, 0)');
+      ctx.fillStyle = wetline;
+      ctx.fillRect(0, 0, canvas.width, 24);
 
-      ctx.fillStyle = 'rgba(72, 60, 44, 0.6)';
-      for (let index = 0; index < 140; index += 1) {
+      // Pebble flecks across the muddy mid-band.
+      ctx.fillStyle = 'rgba(72, 60, 44, 0.55)';
+      for (let index = 0; index < 220; index += 1) {
         const x = (index * 41) % canvas.width;
-        const y = 38 + ((index * 7) % (canvas.height - 40));
+        const y = 30 + ((index * 7) % (canvas.height - 90));
         ctx.fillRect(x, y, 2 + (index % 3), 1 + (index % 2));
       }
 
-      ctx.strokeStyle = 'rgba(40, 56, 50, 0.7)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      for (let x = 0; x <= canvas.width; x += 8) {
-        const y = 30 + Math.sin(x * 0.07) * 2.5 + ((x * 13) % 5);
-        if (x === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
+      // Grass tufts clustered toward the player-side (bottom of canvas).
+      ctx.fillStyle = 'rgba(78, 102, 60, 0.78)';
+      for (let index = 0; index < 180; index += 1) {
+        const x = (index * 23) % canvas.width;
+        const y = canvas.height - 10 - ((index * 17) % (canvas.height * 0.55));
+        ctx.fillRect(x, y, 2 + (index % 3), 4 + (index % 6));
       }
-      ctx.stroke();
+
+      // Brighter grass blades near the very top of the bank.
+      ctx.fillStyle = 'rgba(120, 150, 84, 0.6)';
+      for (let index = 0; index < 90; index += 1) {
+        const x = (index * 31) % canvas.width;
+        const y = canvas.height - 4 - ((index * 11) % 28);
+        ctx.fillRect(x, y, 1 + (index % 2), 5 + (index % 4));
+      }
     }
 
     const map = new THREE.CanvasTexture(canvas);
     map.colorSpace = THREE.SRGBColorSpace;
+    map.wrapS = THREE.RepeatWrapping;
+    map.repeat.set(2, 1);
     return map;
   }, []);
 
-  const frontEdgeZ = TUNING.world.pondHeightM * 0.5;
+  // Bank slopes from water level at the front (z=2.5, y=0) up to the
+  // raised player-side at (z=4.5, y=1.0) so it sits inside the visible
+  // frustum and reads as the ground we cast over.
+  const slopeRun = 2.0;
+  const slopeRise = 1.0;
+  const slopeLength = Math.hypot(slopeRun, slopeRise);
+  const tilt = -(Math.PI / 2 + Math.atan2(slopeRise, slopeRun));
 
   return (
     <mesh
       renderOrder={2}
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[0, TUNING.world.waterY + 0.012, frontEdgeZ + 0.85]}
+      rotation={[tilt, 0, 0]}
+      position={[0, slopeRise * 0.5, 3.5]}
     >
-      <planeGeometry args={[TUNING.world.pondWidthM * 1.18, 1.9]} />
-      <meshBasicMaterial map={texture} color="#9a8870" transparent depthWrite={false} />
+      <planeGeometry args={[TUNING.world.pondWidthM * 1.18, slopeLength]} />
+      <meshBasicMaterial
+        map={texture}
+        color="#a89878"
+        transparent
+        depthWrite={false}
+        side={THREE.DoubleSide}
+      />
     </mesh>
   );
 }
@@ -2096,7 +2117,7 @@ function clampToFishableWater(point: Vec2): Vec2 {
 
   return {
     ...clamped,
-    z: Math.max(TUNING.world.fishableMinZ, clamped.z)
+    z: clamp(clamped.z, TUNING.world.fishableMinZ, TUNING.world.fishableMaxZ)
   };
 }
 
