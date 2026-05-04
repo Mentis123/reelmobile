@@ -121,6 +121,7 @@ export const TUNING = {
     biteNoHookMs: 900,
     fleeDurationMs: 1400,
     hookedPullSpeedMps: 0.8,
+    reelContactPullMps: 1.15,
     hookedInitialStamina: 1,
     biteDistanceM: 0.38,
     inspectOrbitRadiusM: 0.44,

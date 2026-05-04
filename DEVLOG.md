@@ -369,3 +369,21 @@ Append after every milestone. Format:
 - STOP for human iPhone review through `/dev` QR.
 - Specifically recheck ripple perspective, lure readability, fish cue subtlety, fish wandering breadth, rod/reel readability, and whether the pond still passes the M2 visual checklist.
 - Consider depth-as-strategy in a later explicit milestone only after the pond visual gate is approved.
+
+---
+
+## v0.2-line-entry-fix (2026-05-04)
+**Shipped:**
+- During a hooked fight, reeling now pulls the fish/lure contact point toward the nearest fishable water under the rod so the line entry point closes distance.
+- Kept the pull target clamped to fishable water so the fish does not slide under the dock.
+- Added the reel contact pull speed to `src/game/tuning/tuning.ts`.
+
+**Cut:**
+- No new depth strategy, fish systems, gear variants, or roadmap expansion.
+- No approved tag was created by the agent.
+
+**Discovered:**
+- The fight previously drained stamina but did not visually shorten the water-side line endpoint enough while reeling.
+
+**Next:**
+- Human may create the approved M2 tag locally after final live/prod check.

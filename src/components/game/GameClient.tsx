@@ -1060,6 +1060,7 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, ripples
       hooked: current.state.kind === 'hooked',
       rng: current.rng
     }, current.fish);
+    updateHookedContactPoint(current, dt);
 
     if (previousFishKind !== 'bite' && current.fish.state.kind === 'bite') {
       const openedAt = now;
@@ -1548,6 +1549,34 @@ function updateRodControl(runtime: Runtime, dt: number) {
     runtime.lureMovedUntil = performance.now() + TUNING.lure.lureTwitchDurationMs;
     runtime.lureFlashUntil = performance.now() + TUNING.lure.lureFlashDurationMs;
   }
+}
+
+function updateHookedContactPoint(runtime: Runtime, dt: number) {
+  if (runtime.state.kind !== 'hooked') {
+    return;
+  }
+
+  const waterEntryTarget = clampToFishableWater(rodTipForRuntime(runtime));
+
+  if (runtime.reeling) {
+    const toRod = sub(waterEntryTarget, runtime.fish.position);
+    const distanceToRod = Math.hypot(toRod.x, toRod.z);
+    const pullDistance = Math.min(
+      distanceToRod,
+      TUNING.fish.reelContactPullMps * (0.35 + runtime.tension) * dt
+    );
+
+    if (distanceToRod > 0) {
+      const pull = scale(normalize(toRod), pullDistance);
+      runtime.fish = {
+        ...runtime.fish,
+        position: add(runtime.fish.position, pull)
+      };
+    }
+  }
+
+  runtime.lurePos = lerpVec(runtime.lurePos, runtime.fish.position, runtime.reeling ? 0.55 : 0.28);
+  runtime.lureY = TUNING.world.lureSinkDepthY;
 }
 
 function updatePerformance(
