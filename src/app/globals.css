@@ -91,6 +91,42 @@ code {
   text-decoration: none;
 }
 
+.offline-status {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 28px auto 0;
+  padding: 0;
+  color: rgba(200, 196, 178, 0.7);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+}
+
+.offline-status[data-status='ready'] .offline-status-label {
+  color: var(--ui-gold);
+}
+
+.offline-status-label {
+  display: inline-block;
+}
+
+.offline-status-clear {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px dashed rgba(200, 196, 178, 0.32);
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(200, 196, 178, 0.78);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.offline-status-clear:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
 .dev-page {
   display: grid;
   min-height: 100dvh;

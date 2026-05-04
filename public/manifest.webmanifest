@@ -1,0 +1,25 @@
+{
+  "name": "Reel Mobile",
+  "short_name": "Reel",
+  "description": "A mobile-first browser fishing feel experiment.",
+  "start_url": "/game",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1a2b30",
+  "theme_color": "#1a2b30",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "maskable"
+    }
+  ]
+}
