@@ -26,7 +26,7 @@ export const TUNING = {
     rodButt: { x: 0, z: 4.6 },
     rodTipY: 0.5,
     rodBendMaxM: 0.18,
-    rodScreenButtXRatio: 0.5,
+    rodScreenButtXRatio: 0.88,
     rodScreenButtBottomMarginPx: 36,
     rodScreenButtBottomRatio: 0.04,
     rodScreenStrokeWidthPx: 5,

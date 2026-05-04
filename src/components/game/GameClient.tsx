@@ -1244,6 +1244,7 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
       <WaterRipples ripples={ripples} />
       <Reeds />
       <Dock texture={dockTexture} />
+      <Foreshore />
       <mesh ref={fishRef} renderOrder={1} rotation={[-Math.PI / 2, 0, 0]} position={[TUNING.world.fishStart.x, TUNING.world.fishDepthY, TUNING.world.fishStart.z]}>
         <planeGeometry args={[1, 1]} />
         <meshBasicMaterial map={fishTexture} color="#111718" transparent opacity={TUNING.world.fishCueOpacity} depthWrite={false} side={THREE.DoubleSide} />
@@ -1546,6 +1547,72 @@ function BackgroundCard() {
     <mesh position={[0, 1.18, TUNING.world.pondHeightM * 0.5 + 0.15]} rotation={[-0.22, 0, 0]}>
       <planeGeometry args={[TUNING.world.pondWidthM * 1.28, 2.4]} />
       <meshBasicMaterial map={texture} color="#c8c4b2" />
+    </mesh>
+  );
+}
+
+function Foreshore() {
+  const texture = useMemo(() => {
+    if (typeof document === 'undefined') {
+      return new THREE.Texture();
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+
+    if (ctx) {
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      gradient.addColorStop(0, '#1f2a26');
+      gradient.addColorStop(0.35, '#2c2a20');
+      gradient.addColorStop(1, '#181410');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = 'rgba(74, 93, 58, 0.55)';
+      for (let index = 0; index < 90; index += 1) {
+        const x = (index * 23) % canvas.width;
+        const y = 4 + ((index * 11) % 22);
+        ctx.fillRect(x, y, 3 + (index % 3), 6 + (index % 5));
+      }
+
+      ctx.fillStyle = 'rgba(72, 60, 44, 0.6)';
+      for (let index = 0; index < 140; index += 1) {
+        const x = (index * 41) % canvas.width;
+        const y = 38 + ((index * 7) % (canvas.height - 40));
+        ctx.fillRect(x, y, 2 + (index % 3), 1 + (index % 2));
+      }
+
+      ctx.strokeStyle = 'rgba(40, 56, 50, 0.7)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let x = 0; x <= canvas.width; x += 8) {
+        const y = 30 + Math.sin(x * 0.07) * 2.5 + ((x * 13) % 5);
+        if (x === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+      ctx.stroke();
+    }
+
+    const map = new THREE.CanvasTexture(canvas);
+    map.colorSpace = THREE.SRGBColorSpace;
+    return map;
+  }, []);
+
+  const frontEdgeZ = TUNING.world.pondHeightM * 0.5;
+
+  return (
+    <mesh
+      renderOrder={2}
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, TUNING.world.waterY + 0.012, frontEdgeZ + 0.85]}
+    >
+      <planeGeometry args={[TUNING.world.pondWidthM * 1.18, 1.9]} />
+      <meshBasicMaterial map={texture} color="#9a8870" transparent depthWrite={false} />
     </mesh>
   );
 }
@@ -1953,12 +2020,14 @@ function rodPathFromScreen(butt: ScreenPoint, tip: ScreenPoint, hookImpulse: num
 function isRodTouch(screenX: number, screenY: number, viewport: ViewportSize): boolean {
   const buttX = viewport.width * TUNING.world.rodScreenButtXRatio;
   const buttY = viewport.height * (1 - TUNING.world.rodScreenButtBottomRatio);
-  const tipY = buttY - viewport.height * 0.22;
+  const tipX = viewport.width * TUNING.ui.worldProjectOffsetXRatio;
+  const tipY = viewport.height * TUNING.ui.worldProjectOffsetYRatio
+    - TUNING.world.rodTip.z * TUNING.ui.worldProjectScale;
 
   return distancePointToSegment(
     { x: screenX, z: screenY },
     { x: buttX, z: buttY },
-    { x: buttX, z: tipY }
+    { x: tipX, z: tipY }
   ) <= TUNING.input.rodTouchRadiusPx;
 }
 
