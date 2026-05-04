@@ -4,7 +4,7 @@ export type DevChecklistItem = {
 };
 
 export type DevChecklist = {
-  milestone: 'm0' | 'm1' | 'm1.5' | 'm2';
+  milestone: 'm0' | 'm1' | 'm1.5' | 'm2' | 'm3';
   title: string;
   items: DevChecklistItem[];
 };
@@ -63,10 +63,25 @@ export const checklists: Record<DevChecklist['milestone'], DevChecklist> = {
       { id: 'reeds-dock', text: 'Are reeds, dock, and water visually coherent with the palette?' },
       { id: 'playability', text: 'Do the new visuals preserve casting, lure twitch, rod control, bite, hook, fight, failures, and result flow?' }
     ]
+  },
+  m3: {
+    milestone: 'm3',
+    title: 'M3 fish variety real-iPhone gate',
+    items: [
+      { id: 'silhouettes', text: 'Can I distinguish five fish by silhouette alone, without labels in the pond?' },
+      { id: 'cue-signatures', text: 'Do bubbles, glints, surface rises, silt, and wakes feel detectably different?' },
+      { id: 'same-species', text: 'Do two same-species encounters feel slightly different because of personality?' },
+      { id: 'density', text: 'Does fish density feel right: not crowded, not empty?' },
+      { id: 'loop-preserved', text: 'Are casting, twitch, rod control, bite, hook, fight, failures, result, debug HUD, /dev, and /tune preserved?' }
+    ]
   }
 };
 
 export function getChecklist(milestone: string): DevChecklist {
+  if (milestone === 'm3') {
+    return checklists.m3;
+  }
+
   if (milestone === 'm2') {
     return checklists.m2;
   }

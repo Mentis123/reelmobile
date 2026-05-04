@@ -387,3 +387,31 @@ Append after every milestone. Format:
 
 **Next:**
 - Human may create the approved M2 tag locally after final live/prod check.
+
+---
+
+## v0.3-fish-variety-candidate (2026-05-04)
+**Shipped:**
+- Started from latest `main` at human `v0.2-pond-approved`.
+- Added five seeded fish species by silhouette and behavior only: Bronze Carp, Moss Bass, Moon Minnow, Old Kingfish, and Reed Pike.
+- Added per-instance `personality: -1..1` and applied the required +/-15% modulation to notice radius, fear radius, and bite/commit feel through species tuning.
+- Added seeded spawn distribution so each cast advances the deterministic fish instance stream without increasing pond density.
+- Added per-species cue signatures: bubbles for Carp, glints for Bass, surface rises and tail flashes for Minnow, silt for Kingfish, and wakes for Pike, while preserving seeded false cues.
+- Updated catch/failure session context and result stories to record the active species after the encounter.
+- Updated `/dev` candidate metadata and manual checklist for the M3 real-iPhone gate.
+- M3 validation passed: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`, and `pnpm test:e2e`.
+
+**Cut:**
+- No labels over fish while scouting, rarity UI, journal, gear variants, economy, progression, extra ponds, weather, or other `14_DO_NOT_BUILD.md` scope.
+- No new raster fish assets; silhouettes reuse lightweight sprite scaling and low-cost surface cue meshes to protect Mobile Safari performance.
+- No `*-approved` tag. Human review remains required.
+
+**Discovered:**
+- The approved one-active-fish loop is the right density for M3; adding simultaneous fish would risk crowding the pond and weakening perception.
+- Species variety fits cleanly as tuning plus a small species layer, without replacing casting, rod control, bite, fight, failures, debug HUD, `/dev`, or `/tune`.
+- Automated smoke can verify the loop still renders and plays, but only real-iPhone review can judge whether five silhouettes and cue signatures read distinctly.
+
+**Next:**
+- STOP for human iPhone review through `/dev` QR.
+- Review the M3 checklist: five silhouettes, distinct cue signatures, same-species personality differences, fish density, and preservation of the M1/M2 fishing loop.
+- Only a human may create `v0.3-fish-variety-approved` after real-device review passes.

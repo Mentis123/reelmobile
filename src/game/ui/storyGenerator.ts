@@ -1,7 +1,9 @@
 import type { Catch } from '@/game/persistence/sessionStore';
+import { SPECIES_STORY_LABELS } from '@/game/fish/species';
 
 const SPECIES_LABELS: Record<string, string> = {
-  generic: 'pond fish'
+  generic: 'pond fish',
+  ...SPECIES_STORY_LABELS
 };
 
 const LURE_LABELS: Record<string, string> = {

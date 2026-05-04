@@ -7,6 +7,7 @@ import * as THREE from 'three';
 
 import { ProceduralAudio } from '@/game/audio/procedural';
 import { createInitialFish, type FishSnapshot, updateFish } from '@/game/fish/fishStateMachine';
+import { pickSpeciesCue, speciesTuning, type FishCueKind } from '@/game/fish/species';
 import { add, clamp, clampToPond, distance, easeOutCubic, lerp, lerpVec, normalize, scale, seededRandom, sub, type Vec2 } from '@/game/math/vec';
 import { createId, dailySeed, type Catch, type Failure, useSessionStore } from '@/game/persistence/sessionStore';
 import { createVerletLine, type VerletLine, updateVerletLine } from '@/game/physics/verletLine';
@@ -51,6 +52,8 @@ type Runtime = {
   nextRealCueAt: number;
   nextFalseCueAt: number;
   nextStruggleRippleAt: number;
+  spawnIndex: number;
+  realCueIndex: number;
   restoring: boolean;
   minFps: number;
   fpsSamples: Array<{ at: number; fps: number }>;
@@ -67,6 +70,7 @@ type Ripple = {
   createdAt: number;
   durationMs: number;
   falseCue: boolean;
+  cue: FishCueKind;
 };
 
 type AimPreview = {
@@ -128,6 +132,7 @@ export function GameClient() {
   const pointerRef = useRef<PointerSnapshot | null>(null);
   const focusTimeoutRef = useRef<number | null>(null);
   const startedRef = useRef(false);
+  const spawnIndexRef = useRef(0);
   const audio = useRef(new ProceduralAudio());
   const setGameState = useGameStore((state) => state.setGameState);
   const setFishState = useGameStore((state) => state.setFishState);
@@ -146,6 +151,7 @@ export function GameClient() {
   const runtime = useRef<Runtime>(createRuntime(seed));
 
   useEffect(() => {
+    spawnIndexRef.current = 0;
     runtime.current = createRuntime(seed);
     startedRef.current = false;
     setStarted(false);
@@ -235,7 +241,7 @@ export function GameClient() {
       const catchEntry: Catch = {
         id: createId(),
         at: now,
-        species: 'generic',
+        species: runtime.current.fish.instance.species,
         sizeScore: clamp(peakTension, TUNING.fish.catchMinSizeScore, TUNING.fish.catchMaxSizeScore),
         lure: 'default',
         durationMs: now - hookedAt,
@@ -254,7 +260,7 @@ export function GameClient() {
         at: now,
         kind: outcome,
         context: {
-          fishSpecies: 'generic',
+          fishSpecies: runtime.current.fish.instance.species,
           peakTension
         }
       };
@@ -271,7 +277,8 @@ export function GameClient() {
   }, [sessionStore, setGameState, setReeling, setTension]);
 
   const resetCast = useCallback(() => {
-    const nextRuntime = createRuntime(seed);
+    spawnIndexRef.current += 1;
+    const nextRuntime = createRuntime(seed, spawnIndexRef.current);
     nextRuntime.state = { kind: 'scouting', sinceMs: performance.now() };
     runtime.current = nextRuntime;
     setLinePoints([]);
@@ -587,7 +594,7 @@ export function GameClient() {
     finishResult(kind, runtime.current.tension, 0, Date.now());
   }
 
-  function addRipple(pos: Vec2, radius: number, falseCue: boolean) {
+  function addRipple(pos: Vec2, radius: number, falseCue: boolean, cue: FishCueKind = 'ripple') {
     setRipples((value) => [
       ...value,
       {
@@ -596,7 +603,8 @@ export function GameClient() {
         radius,
         createdAt: performance.now(),
         durationMs: falseCue ? TUNING.fish.cueRippleDurationMs : TUNING.fish.cueShadowDurationMs,
-        falseCue
+        falseCue,
+        cue
       }
     ]);
   }
@@ -959,7 +967,8 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, ripples
             radius: TUNING.lure.rippleRadiusOnImpactM,
             createdAt: now,
             durationMs: TUNING.fish.cueRippleDurationMs,
-            falseCue: false
+            falseCue: false,
+            cue: 'ripple'
           }
         ]);
         setGameState(current.state);
@@ -976,13 +985,13 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, ripples
       const biteT = clamp((now - gameState.openedAt) / TUNING.lure.lureBiteTugDurationMs, 0, 1);
       const tug = Math.sin(biteT * Math.PI * TUNING.lure.lureBiteTugPulses) * (1 - biteT) * TUNING.lure.lureBiteTugAmplitudeM;
       current.lureY = TUNING.world.lureSinkDepthY + tug;
-      current.lurePos = lerpVec(gameState.lurePos, current.fish.position, TUNING.fish.personalityScalar);
+      current.lurePos = lerpVec(gameState.lurePos, current.fish.position, biteContactBlend(current.fish));
       setLureState('twitch');
     } else if (gameState.kind === 'hooked') {
       const hookImpulse = hookImpulseFor(current, now);
       if (hookImpulse > 0) {
         current.lurePos = {
-          x: current.lurePos.x + (current.fish.position.x - current.lurePos.x) * hookImpulse * TUNING.fish.personalityScalar,
+          x: current.lurePos.x + (current.fish.position.x - current.lurePos.x) * hookImpulse * biteContactBlend(current.fish),
           z: current.lurePos.z + TUNING.lure.lureHookJerkDistanceM * hookImpulse
         };
       }
@@ -997,7 +1006,8 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, ripples
             radius: TUNING.lure.rippleRadiusOnImpactM * current.tension,
             createdAt: now,
             durationMs: TUNING.fish.cueRippleDurationMs,
-            falseCue: false
+            falseCue: false,
+            cue: 'ripple'
           }
         ]);
       }
@@ -1005,16 +1015,20 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, ripples
     }
 
     if (now > current.nextRealCueAt) {
-      current.nextRealCueAt = now + TUNING.fish.cueRealEveryMs;
+      const cue = pickSpeciesCue(current.fish.instance.species, current.realCueIndex);
+      const species = speciesTuning(current.fish.instance.species);
+      current.realCueIndex += 1;
+      current.nextRealCueAt = now + TUNING.fish.cueRealEveryMs * species.cueEveryMultiplier;
       setRipples((value) => [
         ...value,
         {
           id: createId(),
           pos: current.fish.position,
-          radius: TUNING.lure.rippleRadiusOnTwitchM,
+          radius: species.primaryCueRadiusM,
           createdAt: now,
-          durationMs: TUNING.fish.cueRippleDurationMs,
-          falseCue: false
+          durationMs: cueDuration(cue),
+          falseCue: false,
+          cue
         }
       ]);
     }
@@ -1032,7 +1046,8 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, ripples
           radius: TUNING.lure.rippleRadiusOnTwitchM,
           createdAt: now,
           durationMs: TUNING.fish.cueRippleDurationMs,
-          falseCue: true
+          falseCue: true,
+          cue: falseCueKind(current.rng)
         }
       ]);
     }
@@ -1082,7 +1097,8 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, ripples
           radius: TUNING.lure.rippleRadiusOnTwitchM,
           createdAt: now,
           durationMs: TUNING.fish.cueRippleDurationMs,
-          falseCue: false
+          falseCue: false,
+          cue: 'ripple'
         },
         {
           id: createId(),
@@ -1090,7 +1106,8 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, ripples
           radius: TUNING.lure.rippleRadiusOnTwitchM,
           createdAt: now,
           durationMs: TUNING.fish.cueRippleDurationMs,
-          falseCue: false
+          falseCue: false,
+          cue: 'ripple'
         }
       ]);
       audio.current.nibbleTick();
@@ -1101,16 +1118,17 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, ripples
 
     if (fishRef.current) {
       fishRef.current.position.set(current.fish.position.x, TUNING.world.fishDepthY, current.fish.position.z);
+      const species = speciesTuning(current.fish.instance.species);
       fishRef.current.scale.set(
-        TUNING.world.fishVisualWidthM * (current.fish.state.kind === 'commit' ? 1 + TUNING.fish.personalityScalar : 1),
-        TUNING.world.fishVisualHeightM,
+        species.widthM * (current.fish.state.kind === 'commit' ? 1 + TUNING.fish.personalityScalar : 1),
+        species.heightM,
         1
       );
       const material = fishRef.current.material as THREE.MeshBasicMaterial;
       const baseOpacity = current.fish.state.kind === 'commit' || current.fish.state.kind === 'bite'
         ? TUNING.world.fishCommitOpacity
         : TUNING.world.fishCueOpacity;
-      material.opacity = baseOpacity * fishDepthVisibility(current.fish.position);
+      material.opacity = baseOpacity * species.opacityMultiplier * fishDepthVisibility(current.fish.position);
       material.color.set(current.fish.state.kind === 'commit' || current.fish.state.kind === 'bite' ? '#202323' : '#111718');
     }
 
@@ -1234,8 +1252,11 @@ function WaterRipples({ ripples }: { ripples: Ripple[] }) {
 }
 
 function WaterRipple({ ripple }: { ripple: Ripple }) {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const meshRef = useRef<THREE.Object3D | null>(null);
   const materialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const setObjectRef = useCallback((node: THREE.Object3D | null) => {
+    meshRef.current = node;
+  }, []);
 
   useFrame(() => {
     const age = performance.now() - ripple.createdAt;
@@ -1251,24 +1272,87 @@ function WaterRipple({ ripple }: { ripple: Ripple }) {
     }
   });
 
+  const opacity = ripple.falseCue ? 0.22 : 0.48;
+  const color = cueColor(ripple);
+
+  if (ripple.cue === 'bubble_trail') {
+    return (
+      <group position={[ripple.pos.x, TUNING.world.waterY + 0.018, ripple.pos.z]}>
+        {[0, 1, 2].map((index) => (
+          <mesh key={index} ref={index === 0 ? setObjectRef : undefined} renderOrder={3} rotation={[-Math.PI / 2, 0, 0]} position={[(index - 1) * ripple.radius * 0.62, 0, -index * ripple.radius * 0.44]}>
+            <ringGeometry args={[ripple.radius * 0.16, ripple.radius * 0.26, 16]} />
+            <meshBasicMaterial ref={index === 0 ? materialRef : undefined} color={color} transparent opacity={opacity} depthWrite={false} side={THREE.DoubleSide} />
+          </mesh>
+        ))}
+      </group>
+    );
+  }
+
+  if (ripple.cue === 'glint' || ripple.cue === 'tail_flash') {
+    return (
+      <mesh ref={setObjectRef} renderOrder={4} rotation={[-Math.PI / 2, 0, Math.PI * 0.16]} position={[ripple.pos.x, TUNING.world.waterY + 0.024, ripple.pos.z]}>
+        <planeGeometry args={[ripple.radius * (ripple.cue === 'tail_flash' ? 0.72 : 1.1), ripple.radius * 0.12]} />
+        <meshBasicMaterial ref={materialRef} color={color} transparent opacity={opacity} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+    );
+  }
+
+  if (ripple.cue === 'silt_plume') {
+    return (
+      <mesh ref={setObjectRef} renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[ripple.pos.x, TUNING.world.waterY + 0.012, ripple.pos.z]}>
+        <circleGeometry args={[ripple.radius, 24]} />
+        <meshBasicMaterial ref={materialRef} color={color} transparent opacity={opacity * 0.58} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+    );
+  }
+
+  if (ripple.cue === 'wake') {
+    return (
+      <group ref={setObjectRef} position={[ripple.pos.x, TUNING.world.waterY + 0.02, ripple.pos.z]}>
+        {[-1, 1].map((side) => (
+          <mesh key={side} renderOrder={3} rotation={[-Math.PI / 2, 0, side * Math.PI * 0.18]} position={[side * ripple.radius * 0.24, 0, -ripple.radius * 0.2]}>
+            <planeGeometry args={[ripple.radius * 1.15, ripple.radius * 0.06]} />
+            <meshBasicMaterial color={color} transparent opacity={opacity} depthWrite={false} side={THREE.DoubleSide} />
+          </mesh>
+        ))}
+      </group>
+    );
+  }
+
   return (
     <mesh
-      ref={meshRef}
+      ref={setObjectRef}
       renderOrder={3}
       rotation={[-Math.PI / 2, 0, 0]}
       position={[ripple.pos.x, TUNING.world.waterY + 0.018, ripple.pos.z]}
     >
-      <ringGeometry args={[ripple.radius * 0.74, ripple.radius, TUNING.world.rippleSegments]} />
+      <ringGeometry args={[ripple.radius * (ripple.cue === 'surface_rise' ? 0.44 : 0.74), ripple.radius, TUNING.world.rippleSegments]} />
       <meshBasicMaterial
         ref={materialRef}
-        color={ripple.falseCue ? '#c8c4b2' : '#d8d4c2'}
+        color={color}
         transparent
-        opacity={ripple.falseCue ? 0.22 : 0.48}
+        opacity={opacity}
         depthWrite={false}
         side={THREE.DoubleSide}
       />
     </mesh>
   );
+}
+
+function cueColor(ripple: Ripple): string {
+  if (ripple.falseCue) {
+    return '#c8c4b2';
+  }
+
+  if (ripple.cue === 'glint' || ripple.cue === 'tail_flash') {
+    return '#f1d47a';
+  }
+
+  if (ripple.cue === 'silt_plume') {
+    return '#78684d';
+  }
+
+  return '#d8d4c2';
 }
 
 function Dock({ texture }: { texture: THREE.Texture }) {
@@ -1436,13 +1520,15 @@ function DebugHud({ metrics, gameState, fishState, lureState, tension, seed }: {
   );
 }
 
-function createRuntime(seed: string): Runtime {
-  const rng = seededRandom(seed);
+function createRuntime(seed: string, spawnIndex = 0): Runtime {
+  const rng = seededRandom(`${seed}-spawn-${spawnIndex}`);
   const lurePos = { ...TUNING.world.lureStart };
+  const fish = createInitialFish(rng);
+  const fishSpecies = speciesTuning(fish.instance.species);
 
   return {
     state: { kind: 'splash' },
-    fish: createInitialFish(rng),
+    fish,
     rng,
     lurePos,
     lureY: TUNING.world.lureSurfaceY,
@@ -1461,9 +1547,11 @@ function createRuntime(seed: string): Runtime {
     focusCooldownUntil: 0,
     lateHookUntil: 0,
     hookJerkUntil: 0,
-    nextRealCueAt: nowMs() + TUNING.fish.cueRealEveryMs,
+    nextRealCueAt: nowMs() + TUNING.fish.cueRealEveryMs * fishSpecies.cueEveryMultiplier,
     nextFalseCueAt: nowMs() + lerp(TUNING.fish.cueFalseMinMs, TUNING.fish.cueFalseMaxMs, rng()),
     nextStruggleRippleAt: 0,
+    spawnIndex,
+    realCueIndex: 0,
     restoring: false,
     minFps: TUNING.performance.fpsRecovery,
     fpsSamples: [],
@@ -1479,7 +1567,11 @@ function updateFight(runtime: Runtime, dt: number, onResult: SceneProps['onResul
     return;
   }
 
-  const fishPull = runtime.fish.state.kind === 'hooked' ? runtime.fish.state.rage : TUNING.fish.personalityScalar;
+  const species = speciesTuning(runtime.fish.instance.species);
+  const personalityPull = 1 + runtime.fish.instance.personality * TUNING.fish.personalityModulation;
+  const fishPull = runtime.fish.state.kind === 'hooked'
+    ? runtime.fish.state.rage * species.hookedPullMultiplier * personalityPull
+    : TUNING.fish.personalityScalar;
   const rise = runtime.reeling
     ? (TUNING.tension.tensionRiseRate + TUNING.tension.tensionReelBoost + fishPull * TUNING.tension.tensionBurstRate) * dt
     : -TUNING.tension.tensionFallRate * dt;
@@ -1522,6 +1614,31 @@ function updateFight(runtime: Runtime, dt: number, onResult: SceneProps['onResul
     return;
   }
 
+}
+
+function biteContactBlend(fish: FishSnapshot): number {
+  return TUNING.fish.personalityScalar * (1 + fish.instance.personality * TUNING.fish.personalityModulation);
+}
+
+function cueDuration(cue: FishCueKind): number {
+  if (cue === 'glint' || cue === 'tail_flash') {
+    return TUNING.fish.cueRippleDurationMs * TUNING.fish.cueFlashDurationMultiplier;
+  }
+
+  if (cue === 'surface_rise') {
+    return TUNING.fish.cueRippleDurationMs * TUNING.fish.cueSurfaceRiseDurationMultiplier;
+  }
+
+  if (cue === 'wake' || cue === 'silt_plume' || cue === 'bubble_trail') {
+    return TUNING.fish.cueShadowDurationMs * TUNING.fish.cueLongDurationMultiplier;
+  }
+
+  return TUNING.fish.cueRippleDurationMs;
+}
+
+function falseCueKind(rng: () => number): FishCueKind {
+  const cues: FishCueKind[] = ['ripple', 'glint', 'surface_rise'];
+  return cues[Math.floor(rng() * cues.length)] ?? 'ripple';
 }
 
 function updateRodControl(runtime: Runtime, dt: number) {
