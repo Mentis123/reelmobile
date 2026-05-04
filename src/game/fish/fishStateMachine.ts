@@ -50,7 +50,7 @@ export function nextWanderTarget(rng: () => number): Vec2 {
   const minX = -TUNING.world.pondWidthM * 0.5 + margin;
   const maxX = TUNING.world.pondWidthM * 0.5 - margin;
   const minZ = TUNING.world.fishableMinZ;
-  const maxZ = TUNING.world.pondHeightM * 0.5 - margin;
+  const maxZ = TUNING.world.fishableMaxZ;
 
   return {
     x: minX + rng() * (maxX - minX),
@@ -177,6 +177,6 @@ function shouldSpook(kind: FishState['kind']): boolean {
 function fleeTarget(position: Vec2): Vec2 {
   return {
     x: position.x + TUNING.world.fishWanderRadiusM,
-    z: position.z + TUNING.world.fishWanderRadiusM
+    z: Math.min(position.z + TUNING.world.fishWanderRadiusM, TUNING.world.fishableMaxZ)
   };
 }

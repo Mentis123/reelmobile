@@ -50,6 +50,7 @@ export const TUNING = {
     dockPlankCount: 5,
     dockPlankGapM: 0.04,
     fishableMinZ: -3.05,
+    fishableMaxZ: 1.8,
     cameraLookAtLerp: 0.08
   },
   input: {
