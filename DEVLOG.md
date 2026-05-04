@@ -295,3 +295,22 @@ Append after every milestone. Format:
 - STOP for human iPhone review through `/dev` QR.
 - Review whether dragging the visible rod/handle feels like pulling the lure, and whether slack/sweet/danger can be read before looking at the HUD.
 - Human may create an approved tag only after real-device review passes.
+
+---
+
+## v0.1.5-hook-guard-candidate (2026-05-04)
+**Shipped:**
+- Guarded bite-window hook taps so a small finger move cannot promote the touch into a recast before pointer-up.
+- Kept post-cast water drag recasting available only while the lure is idle and outside late-hook handling.
+- Updated candidate metadata for `/dev` to point at the hook-guard follow-up candidate.
+
+**Cut:**
+- No Phase B art.
+- No approved tag. Human review remains required for the final M1.5 follow-up.
+
+**Discovered:**
+- The recast-on-hook issue came from the pending post-cast touch path promoting movement to `aiming` without checking that the current state was still `lure_idle`.
+
+**Next:**
+- Recheck on iPhone that bite-window taps set the hook even with normal thumb drift, and that deliberate water drags still recast after the lure is idle.
+- If that passes, human may create the approved tag for this follow-up before starting Phase B.

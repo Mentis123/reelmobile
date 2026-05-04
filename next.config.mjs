@@ -3,7 +3,7 @@ function currentCandidateTag() {
     return process.env.NEXT_PUBLIC_REEL_CANDIDATE_TAG;
   }
 
-  return 'v0.1.5-rod-control-candidate';
+  return 'v0.1.5-hook-guard-candidate';
 }
 
 function currentMilestone(tag) {

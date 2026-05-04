@@ -356,6 +356,10 @@ export function GameClient() {
         return;
       }
 
+      if (!canPendingTouchBecomeCast(runtime.current)) {
+        return;
+      }
+
       pointer.mode = 'aiming';
       const cast = computeCast(pointer.startX, pointer.startY, pointer.x, pointer.y);
       runtime.current.state = {
@@ -1288,6 +1292,10 @@ function rodTipForRuntime(runtime: Runtime, hookImpulse = 0): Vec2 {
 
 function isEarlyHookAttempt(fishStateKind: string): boolean {
   return TUNING.fish.earlyHookStates.some((state) => state === fishStateKind);
+}
+
+function canPendingTouchBecomeCast(runtime: Runtime): boolean {
+  return runtime.state.kind === 'lure_idle' && runtime.lateHookUntil <= performance.now();
 }
 
 function rodPathFor(tension: number, viewport: ViewportSize, hookImpulse: number, rodOffset: Vec2): string {
