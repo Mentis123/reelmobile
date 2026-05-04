@@ -468,6 +468,10 @@ code {
   padding: 0 16px;
 }
 
+.result-card button:disabled {
+  opacity: 0.45;
+}
+
 .tune-page {
   min-height: 100dvh;
   padding: max(18px, env(safe-area-inset-top)) 14px max(18px, env(safe-area-inset-bottom));

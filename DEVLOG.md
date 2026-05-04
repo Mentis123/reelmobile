@@ -208,3 +208,25 @@ Append after every milestone. Format:
 - Retest deployed `main` on the same iPhone/Chrome setup.
 - Evaluate whether late misses now feel learnable and whether line slack/tautness better communicates the happy tension range.
 - Consider a later M1 input refinement: touch the rod/handle to manipulate rod tip, touch water/drag from idle to cast.
+
+---
+
+## M1 result/audio clarity pass (2026-05-04)
+**Shipped:**
+- Result overlay no longer dismisses from tapping anywhere on the card.
+- Result dismissal is locked for `TUNING.timing.resultDismissLockMs`, then only the `Cast again.` button can reset.
+- Catch result copy now starts with `Caught.`; failure result copy starts with `Missed.`, `Lost.`, or `No fish.`.
+- Splash begin now triggers from pointer release/click instead of pointer down and plays an immediate confirm tone after Web Audio unlock.
+- Ambient pond noise is louder and less flat so audio should be present immediately after unlock, before the first bite.
+
+**Cut:**
+- No Phase B work.
+- No approval tag.
+
+**Discovered:**
+- Tapping to reel makes accidental result-card dismissal likely unless the card ignores non-button taps.
+- iOS Chrome audio unlock is more reliable when the splash action completes on release/click rather than pointer down.
+
+**Next:**
+- Retest deployed `main` on iPhone 16 Pro / iOS 18.7 / Chrome on iOS.
+- Confirm audio is audible immediately after the splash tap and that catch/failure outcomes are unambiguous.

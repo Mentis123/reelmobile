@@ -30,6 +30,10 @@ export class ProceduralAudio {
     await this.ctx.resume();
   }
 
+  beginConfirm() {
+    this.tone(TUNING.audio.beginConfirmHz, TUNING.audio.beginConfirmHz, TUNING.audio.beginConfirmMs, 'sine', TUNING.audio.beginConfirmGain);
+  }
+
   castWhoosh(power: number) {
     this.noiseBurst(TUNING.audio.whooshMs, TUNING.audio.sfxGain * power, 'lowpass', 2000, 500);
   }
@@ -145,7 +149,7 @@ export class ProceduralAudio {
     let last = 0;
 
     for (let index = 0; index < data.length; index += 1) {
-      last = (last + (Math.random() * 2 - 1) * 0.02) * 0.98;
+      last = (last + (Math.random() * 2 - 1) * TUNING.audio.ambientNoiseStep) * TUNING.audio.ambientNoiseDamping;
       data[index] = last;
     }
 

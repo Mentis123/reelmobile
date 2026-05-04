@@ -98,8 +98,10 @@ export function GameClient() {
   const [restoring, setRestoring] = useState(false);
   const [landscape, setLandscape] = useState(false);
   const [viewport, setViewport] = useState<ViewportSize | null>(null);
+  const [resultDismissReady, setResultDismissReady] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const pointerRef = useRef<PointerSnapshot | null>(null);
+  const startedRef = useRef(false);
   const audio = useRef(new ProceduralAudio());
   const setGameState = useGameStore((state) => state.setGameState);
   const setFishState = useGameStore((state) => state.setFishState);
@@ -118,6 +120,8 @@ export function GameClient() {
 
   useEffect(() => {
     runtime.current = createRuntime(seed);
+    startedRef.current = false;
+    setStarted(false);
     setSeed(seed);
     setGameState({ kind: 'splash' });
     setFishState(runtime.current.fish.state);
@@ -162,7 +166,16 @@ export function GameClient() {
   }, []);
 
   const begin = useCallback(() => {
-    void audio.current.unlock().catch(() => undefined);
+    if (startedRef.current) {
+      return;
+    }
+
+    startedRef.current = true;
+    void audio.current.unlock()
+      .then(() => {
+        audio.current.beginConfirm();
+      })
+      .catch(() => undefined);
     void document.documentElement.requestFullscreen?.().catch(() => undefined);
     const orientation = screen.orientation as (ScreenOrientation & { lock?: (orientation: 'portrait') => Promise<void> }) | undefined;
     void orientation?.lock?.('portrait').catch(() => undefined);
@@ -226,6 +239,22 @@ export function GameClient() {
     setGameState(nextRuntime.state);
     setFishState(nextRuntime.fish.state);
   }, [seed, setFishState, setGameState, setReeling]);
+
+  useEffect(() => {
+    if (gameState.kind !== 'result') {
+      setResultDismissReady(false);
+      return undefined;
+    }
+
+    setResultDismissReady(false);
+    const timeout = window.setTimeout(() => {
+      setResultDismissReady(true);
+    }, TUNING.timing.resultDismissLockMs);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [gameState]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!started || runtime.current.state.kind === 'splash') {
@@ -587,6 +616,9 @@ export function GameClient() {
           type="button"
           onPointerDown={(event) => {
             event.stopPropagation();
+          }}
+          onPointerUp={(event) => {
+            event.stopPropagation();
             begin();
           }}
           onClick={begin}
@@ -602,18 +634,20 @@ export function GameClient() {
           data-testid="result-card"
           onPointerDown={(event) => {
             event.stopPropagation();
-            resetCast();
           }}
-          onClick={resetCast}
         >
           <p>{gameState.storyText}</p>
           <button
             type="button"
+            disabled={!resultDismissReady}
             onPointerDown={(event) => {
               event.stopPropagation();
-              resetCast();
             }}
-            onClick={resetCast}
+            onClick={() => {
+              if (resultDismissReady) {
+                resetCast();
+              }
+            }}
           >
             Cast again.
           </button>

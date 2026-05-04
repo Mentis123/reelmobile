@@ -25,25 +25,25 @@ export function generateStory(catchEntry: Catch): string {
     ? `Took over ${Math.round(catchEntry.durationMs / 1000)} seconds.`
     : 'Came in close to the dock.';
 
-  return `${size} ${speciesLabel}.\nTook the ${lureLabel}.\n${struggle}\n${duration}`.trim();
+  return `Caught.\n${size} ${speciesLabel}.\nTook the ${lureLabel}.\n${struggle}\n${duration}`.trim();
 }
 
 export function failureStory(kind: string): string {
   if (kind === 'missed_early') {
-    return 'Too soon. The fish slipped away.';
+    return 'Missed.\nToo soon. The fish slipped away.';
   }
 
   if (kind === 'missed_late') {
-    return 'Too late. It dropped the lure and bolted.';
+    return 'Missed.\nToo late. It dropped the lure and bolted.';
   }
 
   if (kind === 'snap') {
-    return 'Snapped. The lure is gone with the fish.';
+    return 'Lost.\nSnapped. The lure is gone with the fish.';
   }
 
   if (kind === 'escape') {
-    return 'You stopped reeling. The line went slack and the fish threw the hook.';
+    return 'Lost.\nYou stopped reeling. The line went slack and the fish threw the hook.';
   }
 
-  return 'The pond went quiet.';
+  return 'No fish.\nThe pond went quiet.';
 }
