@@ -880,7 +880,7 @@ export function GameClient() {
   function computeCast(startX: number, startY: number, endX: number, endY: number) {
     const drag = {
       x: (endX - startX) / TUNING.input.dragPowerPixels,
-      z: (startY - endY) / TUNING.input.dragPowerPixels
+      z: (endY - startY) / TUNING.input.dragPowerPixels
     };
     const dragLength = Math.hypot(drag.x, drag.z);
     const normalizedPower = clamp(dragLength, TUNING.input.castPowerMin, TUNING.input.castPowerMax);
