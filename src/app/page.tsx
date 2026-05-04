@@ -1,5 +1,7 @@
 import Link from 'next/link';
 
+import { OfflineStatus } from '@/components/pwa/OfflineStatus';
+
 export default function HomePage() {
   return (
     <main className="home-shell">
@@ -9,6 +11,7 @@ export default function HomePage() {
         <Link className="begin-button" href="/game">
           Enter the pond
         </Link>
+        <OfflineStatus />
       </section>
     </main>
   );
