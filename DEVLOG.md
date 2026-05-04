@@ -431,3 +431,15 @@ Append after every milestone. Format:
 - The previous `worldToScreen` projection was the root cause of every "line ends in the wrong place" bug; aim-preview dots still use it but they tolerate the offset.
 **Next:**
 - Real-device iPhone review of: (a) line/lure alignment during cast and fight, (b) fish heading through wander/inspect/flee, (c) full reel visibility under Safari's bottom toolbar, (d) idle pole presentation.
+
+---
+
+## fix-fishing-rod-casting-2rWqS (pending)
+**Shipped:**
+- Re-centered the rod butt anchor from the bottom-right corner (`rodScreenButtXRatio: 0.78`) to bottom-middle (`0.5`) and brought it closer to the bottom edge (`rodScreenButtBottomMarginPx` 86 → 36) so the rod reads as a near-vertical first-person fishing pole instead of a diagonal stick floating from the corner.
+**Cut:**
+- No code restructuring — purely a tuning tweak; the screen-anchored butt + camera-projected tip pipeline from the prior candidate stays intact.
+**Discovered:**
+- The corner anchor + camera-projected tip combo created a long diagonal "rod from nowhere" silhouette; even though the line endpoint still met the rod tip exactly, the eye read the rod as detached from the scene and from the line.
+**Next:**
+- Real-device iPhone review: confirm the centered rod silhouette reads as held by the viewer, the reel/handle still sit comfortably above the bottom safe area, and the line continues smoothly off the rod tip during cast/fight.
