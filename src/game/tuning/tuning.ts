@@ -39,6 +39,7 @@ export const TUNING = {
     dockThicknessM: 0.18,
     dockPlankCount: 5,
     dockPlankGapM: 0.04,
+    fishableMinZ: -3.05,
     cameraLookAtLerp: 0.08
   },
   input: {
@@ -70,6 +71,9 @@ export const TUNING = {
     lineTautWidthPx: 2,
     lineSnapWidthPx: 2.5,
     lineHookWidthBoostPx: 1.3,
+    lineVisualTautStart: 0.58,
+    lineVisualTautFull: 0.9,
+    lineSlackGravityMultiplier: 1.55,
     rodBendMaxDeg: 30
   },
   lure: {
@@ -79,6 +83,7 @@ export const TUNING = {
     lureRadiusM: 0.09,
     lureFlashDurationMs: 180,
     lureTwitchDistanceM: 0.34,
+    lureTwitchSidewaysRatio: 0.5,
     lureTwitchDurationMs: 180,
     lureBiteTugDurationMs: 620,
     lureBiteTugAmplitudeM: 0.12,
@@ -181,8 +186,8 @@ export const TUNING = {
     reelClickMinIntervalMs: 70,
     reelClickMaxIntervalMs: 220,
     reelClickGain: 0.11,
-    reelClickStartHz: 1800,
-    reelClickEndHz: 760,
+    reelClickFilterStartHz: 900,
+    reelClickFilterEndHz: 700,
     lineStrainMinTension: 0.78,
     lineStrainGain: 0.16,
     lineStrainPitchRise: 1,

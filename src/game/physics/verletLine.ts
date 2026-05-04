@@ -23,6 +23,7 @@ export function createVerletLine(anchor: Vec2, end: Vec2): VerletLine {
 }
 
 export function updateVerletLine(line: VerletLine, anchor: Vec2, end: Vec2, dt: number, tension: number): VerletLine {
+  const visualTension = visualLineTension(tension);
   const points = line.points.map((point, index) => {
     if (index === 0) {
       return { pos: anchor, prev: anchor };
@@ -36,7 +37,7 @@ export function updateVerletLine(line: VerletLine, anchor: Vec2, end: Vec2, dt: 
       x: (point.pos.x - point.prev.x) * TUNING.line.lineDamping,
       z: (point.pos.z - point.prev.z) * TUNING.line.lineDamping
     };
-    const gravity = TUNING.line.lineGravity * (1 - tension) * dt * dt;
+    const gravity = TUNING.line.lineGravity * TUNING.line.lineSlackGravityMultiplier * (1 - visualTension) * dt * dt;
     const pos = {
       x: point.pos.x + velocity.x,
       z: point.pos.z + velocity.z - gravity
@@ -85,6 +86,16 @@ export function updateVerletLine(line: VerletLine, anchor: Vec2, end: Vec2, dt: 
   points[points.length - 1].pos = end;
 
   return { points };
+}
+
+function visualLineTension(tension: number): number {
+  const range = TUNING.line.lineVisualTautFull - TUNING.line.lineVisualTautStart;
+
+  if (range <= 0) {
+    return tension;
+  }
+
+  return Math.min(1, Math.max(0, (tension - TUNING.line.lineVisualTautStart) / range));
 }
 
 function distanceFor(a: Vec2, b: Vec2): number {

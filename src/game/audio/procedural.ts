@@ -120,12 +120,12 @@ export class ProceduralAudio {
 
   private reelClickLoop() {
     const tensionFactor = Math.min(1, Math.max(0, this.reelLoopTension));
-    this.tone(
-      TUNING.audio.reelClickStartHz,
-      TUNING.audio.reelClickEndHz,
-      TUNING.audio.nibbleTickMs,
-      'square',
-      TUNING.audio.reelClickGain + tensionFactor * TUNING.audio.reelClickGain
+    this.noiseBurst(
+      TUNING.audio.twitchMs,
+      TUNING.audio.reelClickGain + tensionFactor * TUNING.audio.reelClickGain,
+      'bandpass',
+      TUNING.audio.reelClickFilterStartHz,
+      TUNING.audio.reelClickFilterEndHz
     );
     const interval = TUNING.audio.reelClickMaxIntervalMs - (TUNING.audio.reelClickMaxIntervalMs - TUNING.audio.reelClickMinIntervalMs) * tensionFactor;
     this.reelTimer = window.setTimeout(() => this.reelClickLoop(), interval);

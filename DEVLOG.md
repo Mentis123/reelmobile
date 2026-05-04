@@ -182,3 +182,29 @@ Append after every milestone. Format:
 - Test the deployed `main` again on iPhone 16 Pro / iOS 18.7 / Chrome on iOS against the same 10-question checklist.
 - Pay special attention to items 3, 4, 6, 7, 8, and 10.
 - If this feels closer, decide whether to tag a new `v0.1.x-*-candidate` for formal human review.
+
+---
+
+## M1 real-device bugfix pass (2026-05-04)
+**Shipped:**
+- Recorded iPhone 16 Pro / iOS 18.7 / Chrome on iOS feedback with screenshot showing lure/line state after repeated taps.
+- Missed-late bite flow now resolves to an explicit miss result instead of silently returning to casting.
+- Touching during the late-bite grace window now resolves the late miss instead of beginning another cast.
+- Repeated lure twitch taps are clamped to fishable water so the lure cannot walk up onto the dock.
+- Cast targets are clamped to the same fishable-water bounds as lure twitching.
+- Rope visual tension now stays slack longer and only pulls straight near high tension.
+- Reel audio uses the earlier click/noise character again while keeping continuous line strain gated to high tension.
+
+**Cut:**
+- No Phase B work.
+- No approval tag.
+- No pole-drag lure manipulation yet.
+
+**Discovered:**
+- The cast/twitch input model still conflates screen touch intent: tap-to-twitch, drag-to-cast, and future rod manipulation need clearer separation.
+- The desired future mechanic is likely rod-tip manipulation after the lure is in water, where dragging the rod/pole changes line load and pulls the lure without recasting.
+
+**Next:**
+- Retest deployed `main` on the same iPhone/Chrome setup.
+- Evaluate whether late misses now feel learnable and whether line slack/tautness better communicates the happy tension range.
+- Consider a later M1 input refinement: touch the rod/handle to manipulate rod tip, touch water/drag from idle to cast.

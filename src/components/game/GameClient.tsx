@@ -252,6 +252,11 @@ export function GameClient() {
       return;
     }
 
+    if (runtime.current.state.kind === 'lure_idle' && runtime.current.lateHookUntil > performance.now()) {
+      resolveMiss('missed_late');
+      return;
+    }
+
     if (runtime.current.state.kind === 'scouting' || runtime.current.state.kind === 'lure_idle') {
       const cast = computeCast(event.clientX, event.clientY, event.clientX, event.clientY);
       runtime.current.state = {
@@ -375,14 +380,19 @@ export function GameClient() {
       return;
     }
 
+    if (runtime.current.lateHookUntil > performance.now()) {
+      resolveMiss('missed_late');
+      return;
+    }
+
     const now = performance.now();
     runtime.current.lastTwitchAt = now;
     runtime.current.lureMovedUntil = now + TUNING.lure.lureTwitchDurationMs;
     runtime.current.lureFlashUntil = now + TUNING.lure.lureFlashDurationMs;
-    runtime.current.lurePos = {
-      x: runtime.current.lurePos.x + (runtime.current.rng() - 0.5) * TUNING.lure.lureTwitchDistanceM,
+    runtime.current.lurePos = clampToFishableWater({
+      x: runtime.current.lurePos.x + (runtime.current.rng() - TUNING.lure.lureTwitchSidewaysRatio) * TUNING.lure.lureTwitchDistanceM,
       z: runtime.current.lurePos.z + TUNING.lure.lureTwitchDistanceM
-    };
+    });
     runtime.current.state = { ...runtime.current.state, lastTwitchAt: now };
     addRipple(runtime.current.lurePos, TUNING.lure.rippleRadiusOnTwitchM, false);
     audio.current.lureTwitch();
@@ -646,7 +656,7 @@ export function GameClient() {
     );
 
     return {
-      target,
+      target: clampToFishableWater(target),
       power,
       flightMs: lerp(TUNING.input.castFlightTimeMin, TUNING.input.castFlightTimeMax, power) * TUNING.timing.msPerSecond
     };
@@ -807,6 +817,14 @@ function GameScene({ started, runtime, audio, setLinePoints, setRipples, setPixe
       current.lateHookUntil = now + TUNING.fish.biteNoHookMs;
       current.state = { kind: 'lure_idle', lurePos: current.lurePos, sinceMs: now, lastTwitchAt: current.lastTwitchAt };
       setGameState(current.state);
+    }
+
+    if (current.lateHookUntil > 0 && current.state.kind === 'lure_idle' && now > current.lateHookUntil) {
+      current.lateHookUntil = 0;
+      audio.current.fishSplash(TUNING.audio.missedSplashIntensity);
+      navigator.vibrate?.(TUNING.haptics.missed);
+      onResult('missed_late', current.tension, 0, Date.now());
+      return;
     }
 
     const previousFishKind: string = current.fish.state.kind;
@@ -1135,6 +1153,20 @@ function hookImpulseFor(runtime: Runtime, now: number): number {
 
 function nowMs(): number {
   return typeof performance === 'undefined' ? 0 : performance.now();
+}
+
+function clampToFishableWater(point: Vec2): Vec2 {
+  const clamped = clampToPond(
+    point,
+    TUNING.world.pondWidthM,
+    TUNING.world.pondHeightM,
+    TUNING.world.pondMarginRatio
+  );
+
+  return {
+    ...clamped,
+    z: Math.max(TUNING.world.fishableMinZ, clamped.z)
+  };
 }
 
 function worldToScreen(point: Vec2, viewport: ViewportSize) {
