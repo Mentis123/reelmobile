@@ -888,7 +888,11 @@ export function GameClient() {
     const dragLength = Math.hypot(drag.x, drag.z);
     const normalizedPower = clamp(dragLength, TUNING.input.castPowerMin, TUNING.input.castPowerMax);
     const power = easeOutCubic(normalizedPower);
-    const direction = normalize(drag);
+    const rawDirection = normalize(drag);
+    const direction = {
+      x: rawDirection.x,
+      z: Math.min(rawDirection.z, 0)
+    };
     const target = clampToPond(
       {
         x: TUNING.world.rodTip.x + direction.x * power * TUNING.input.castMaxRangeM,
@@ -898,9 +902,13 @@ export function GameClient() {
       TUNING.world.pondHeightM,
       TUNING.world.pondMarginRatio
     );
+    const visibleTarget = {
+      x: clamp(target.x, -TUNING.input.castVisibleHalfWidthM, TUNING.input.castVisibleHalfWidthM),
+      z: Math.min(target.z, TUNING.world.rodTip.z - TUNING.input.castMinForwardM)
+    };
 
     return {
-      target: clampToFishableWater(target),
+      target: clampToFishableWater(visibleTarget),
       power,
       flightMs: lerp(TUNING.input.castFlightTimeMin, TUNING.input.castFlightTimeMax, power) * TUNING.timing.msPerSecond
     };
@@ -1623,39 +1631,39 @@ function RodReel({ rodButtScreen, rodTipScreen }: { rodButtScreen: ScreenPoint; 
   const length = Math.max(1, Math.hypot(dx, dy));
   const tx = dx / length;
   const ty = dy / length;
-  const nx = -ty;
-  const ny = tx;
+  const nx = ty;
+  const ny = -tx;
   const reelDistance = TUNING.world.rodReelOffsetPx;
-  const cx = rodButtScreen.x + tx * 24;
-  const cy = rodButtScreen.y + ty * 24;
+  const cx = rodButtScreen.x + tx * 18;
+  const cy = rodButtScreen.y + ty * 18;
   const reelX = cx + nx * reelDistance;
   const reelY = cy + ny * reelDistance;
-  const handleX = reelX - tx * 5 + nx * 11;
-  const handleY = reelY - ty * 5 + ny * 11;
-  const knobX = handleX + nx * 5 - tx * 1;
-  const knobY = handleY + ny * 5 - ty * 1;
+  const handleX = reelX + tx * 4 + nx * 9;
+  const handleY = reelY + ty * 4 + ny * 9;
+  const knobX = handleX + nx * 4 + tx * 1;
+  const knobY = handleY + ny * 4 + ty * 1;
 
   return (
     <g className="rod-reel">
       <line
         x1={cx}
         y1={cy}
-        x2={reelX + nx * 2}
-        y2={reelY + ny * 2}
+        x2={reelX + nx * 1.5}
+        y2={reelY + ny * 1.5}
         stroke="#3a2718"
         strokeLinecap="round"
-        strokeWidth="3"
+        strokeWidth="2.4"
       />
       <circle
         cx={reelX}
         cy={reelY}
-        r="13"
+        r="9.5"
         fill="rgba(20, 24, 24, 0.78)"
         stroke="var(--moonlight)"
-        strokeWidth="2"
+        strokeWidth="1.6"
       />
-      <circle cx={reelX} cy={reelY} r="9" fill="rgba(40, 44, 44, 0.78)" />
-      <circle cx={reelX} cy={reelY} r="4.2" fill="var(--ui-gold)" />
+      <circle cx={reelX} cy={reelY} r="6.5" fill="rgba(40, 44, 44, 0.78)" />
+      <circle cx={reelX} cy={reelY} r="3" fill="var(--ui-gold)" />
       <line
         x1={reelX}
         y1={reelY}
@@ -1663,9 +1671,9 @@ function RodReel({ rodButtScreen, rodTipScreen }: { rodButtScreen: ScreenPoint; 
         y2={handleY}
         stroke="var(--moonlight)"
         strokeLinecap="round"
-        strokeWidth="2.2"
+        strokeWidth="1.8"
       />
-      <circle cx={knobX} cy={knobY} r="3.4" fill="var(--ui-gold)" stroke="rgba(20, 24, 24, 0.7)" strokeWidth="1" />
+      <circle cx={knobX} cy={knobY} r="2.6" fill="var(--ui-gold)" stroke="rgba(20, 24, 24, 0.7)" strokeWidth="0.8" />
     </g>
   );
 }
@@ -2020,7 +2028,8 @@ function rodPathFromScreen(butt: ScreenPoint, tip: ScreenPoint, hookImpulse: num
 function isRodTouch(screenX: number, screenY: number, viewport: ViewportSize): boolean {
   const buttX = viewport.width * TUNING.world.rodScreenButtXRatio;
   const buttY = viewport.height * (1 - TUNING.world.rodScreenButtBottomRatio);
-  const tipX = viewport.width * TUNING.ui.worldProjectOffsetXRatio;
+  const tipX = viewport.width * TUNING.ui.worldProjectOffsetXRatio
+    + TUNING.world.rodTip.x * TUNING.ui.worldProjectScale;
   const tipY = viewport.height * TUNING.ui.worldProjectOffsetYRatio
     - TUNING.world.rodTip.z * TUNING.ui.worldProjectScale;
 
