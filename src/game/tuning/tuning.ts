@@ -130,8 +130,8 @@ export const TUNING = {
     fishNoticeRadius: 2,
     fishFearRadius: 0.4,
     biteWindowMs: 600,
-    fishStaminaDrainRate: 0.15,
-    personalityScalar: 0.08,
+    fishStaminaDrainRate: 0.1,
+    personalityScalar: 0.18,
     wanderSpeedMps: 0.28,
     noticeDurationMs: 700,
     approachSpeedMps: 0.78,
@@ -151,14 +151,22 @@ export const TUNING = {
     cueShadowDurationMs: 6200,
     cueGlideAmplitudeM: 0.42,
     cueNoiseCount: 2,
-    cueFlashDurationMultiplier: 0.18,
+    cueFlashDurationMultiplier: 0.32,
     cueSurfaceRiseDurationMultiplier: 0.42,
     cueLongDurationMultiplier: 0.62,
+    cueRealPeakOpacity: 0.62,
+    cueFalsePeakOpacity: 0.22,
+    cueSiltOpacityMultiplier: 0.78,
+    cueBubbleTrailCount: 4,
     staminaLandThreshold: 0.1,
     earlyHookStates: ['approach', 'inspect', 'commit'] as const,
     catchMinSizeScore: 0.35,
     catchMaxSizeScore: 0.94,
-    personalityModulation: 0.15,
+    personalityModulation: 0.42,
+    personalityHesitation: 0.45,
+    fightSurgeRageBoost: 0.62,
+    rageDecayPerSecond: 0.55,
+    rageBaseline: 0.25,
     fishFacingMinSpeed: 0.04,
     fishFacingTurnRate: 5.5,
     species: {
@@ -178,7 +186,11 @@ export const TUNING = {
         staminaDrainMultiplier: 1.05,
         hookedPullMultiplier: 0.82,
         cueEveryMultiplier: 0.95,
-        primaryCueRadiusM: 0.22
+        primaryCueRadiusM: 0.22,
+        surgeIntervalMinMs: 2100,
+        surgeIntervalMaxMs: 4000,
+        surgeTensionSpike: 0.18,
+        surgeAudioIntensity: 0.55
       },
       moss_bass: {
         spawnWeight: 26,
@@ -196,7 +208,11 @@ export const TUNING = {
         staminaDrainMultiplier: 1,
         hookedPullMultiplier: 1,
         cueEveryMultiplier: 1,
-        primaryCueRadiusM: 0.18
+        primaryCueRadiusM: 0.18,
+        surgeIntervalMinMs: 1700,
+        surgeIntervalMaxMs: 3200,
+        surgeTensionSpike: 0.22,
+        surgeAudioIntensity: 0.6
       },
       moon_minnow: {
         spawnWeight: 22,
@@ -214,7 +230,11 @@ export const TUNING = {
         staminaDrainMultiplier: 1.22,
         hookedPullMultiplier: 0.9,
         cueEveryMultiplier: 0.72,
-        primaryCueRadiusM: 0.16
+        primaryCueRadiusM: 0.16,
+        surgeIntervalMinMs: 600,
+        surgeIntervalMaxMs: 1400,
+        surgeTensionSpike: 0.08,
+        surgeAudioIntensity: 0.32
       },
       old_kingfish: {
         spawnWeight: 8,
@@ -232,7 +252,11 @@ export const TUNING = {
         staminaDrainMultiplier: 0.66,
         hookedPullMultiplier: 1.38,
         cueEveryMultiplier: 1.55,
-        primaryCueRadiusM: 0.42
+        primaryCueRadiusM: 0.42,
+        surgeIntervalMinMs: 3600,
+        surgeIntervalMaxMs: 5500,
+        surgeTensionSpike: 0.34,
+        surgeAudioIntensity: 0.85
       },
       reed_pike: {
         spawnWeight: 16,
@@ -250,7 +274,11 @@ export const TUNING = {
         staminaDrainMultiplier: 0.82,
         hookedPullMultiplier: 1.28,
         cueEveryMultiplier: 0.82,
-        primaryCueRadiusM: 0.34
+        primaryCueRadiusM: 0.34,
+        surgeIntervalMinMs: 950,
+        surgeIntervalMaxMs: 1900,
+        surgeTensionSpike: 0.26,
+        surgeAudioIntensity: 0.7
       }
     }
   },
@@ -348,6 +376,7 @@ export const TUNING = {
     catch: [10, 30, 10, 30, 60],
     missed: [10],
     escape: [15, 15],
+    fishSurge: [25, 35, 20],
     tensionRepeatMs: 200
   },
   ui: {

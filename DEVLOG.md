@@ -443,3 +443,67 @@ Append after every milestone. Format:
 - The corner anchor + camera-projected tip combo created a long diagonal "rod from nowhere" silhouette; even though the line endpoint still met the rod tip exactly, the eye read the rod as detached from the scene and from the line.
 **Next:**
 - Real-device iPhone review: confirm the centered rod silhouette reads as held by the viewer, the reel/handle still sit comfortably above the bottom safe area, and the line continues smoothly off the rod tip during cast/fight.
+
+---
+
+## M3 human review feedback (2026-05-12)
+**Tested:**
+- URL: `https://reelmobile.vercel.app` after M3 candidate ship.
+- Score: M3 checklist failed on silhouettes, personality, and fight feel.
+
+**Discovered:**
+- Five species couldn't be told apart by silhouette: shared `fish_generic.webp` sprite at five scales, not five distinct body shapes.
+- `personalityModulation: 0.15` was too small to notice; same-species and cross-species encounters felt indistinguishable.
+- Fight had no resistance: stamina drained smoothly during reeling with no fish-initiated surge against the player, so "I panicked. I nearly snapped the line" couldn't happen.
+- Density (one active fish + paired cue layers) reads OK; not changing the spawn model.
+
+**Next:**
+- Treat as M3.1 feel-repair, not Phase B.
+- Distinct silhouettes per species, stronger personality plumbing, fish-initiated fight surges, sharper cue signatures.
+
+---
+
+## v0.3.1-fish-feel-candidate (2026-05-12)
+**Shipped:**
+- Per-species silhouettes generated procedurally as CanvasTextures inside the scene; each species mesh now binds its own body shape (carp deep-bodied, bass mid-stocky, minnow small/forked, kingfish long+broad with twin fins, pike long+narrow with rear dorsal). No new raster assets.
+- Personality scalar plumbing: `personalityModulation` 0.15 → 0.42, `personalityScalar` 0.08 → 0.18, and a new `personalityHesitation` curve modulates notice/inspect/commit/flee durations so cautious vs. bold fish read in timing as well as radius. Flee direction now uses personality and position sign.
+- Fight surges: per-species `surgeInterval{Min,Max}Ms`, `surgeTensionSpike`, and `surgeAudioIntensity`. Pike surges hard and often; Kingfish surges deep and slow; Minnow flicks; Carp/Bass sit in between. Each surge spikes tension, boosts the fish's `rage`, plays a splash, and vibrates a new `fishSurge` haptic. Personality bias scales surge cadence.
+- Rage decay during `hooked`: rage relaxes toward a personality-shaped baseline between surges so the fight modulates instead of holding constant.
+- Stamina drain reduced (0.15 → 0.1) so the fight lasts long enough for surges to land.
+- Sharper cue signatures: real-cue peak opacity 0.48 → 0.62, glint/tail-flash hold roughly doubled (`cueFlashDurationMultiplier` 0.18 → 0.32), silt opacity 0.58 → 0.78 of real-cue base, bubble trail bead count 3 → 4.
+- `/dev` page exposes an `m3.1` checklist focused on body shape, surge feel, and personality variance.
+- Candidate metadata (`buildInfo.ts`, `next.config.mjs`) advanced to `v0.3.1-fish-feel-candidate`.
+
+**Cut:**
+- No concurrent fish; spawn density unchanged. The one-active-fish + cue-layer perception model from M3 stays.
+- No new raster art, no rarity/labels, no journal, no gear variants, no Phase B scope.
+- No `*-approved` tag.
+
+**Discovered:**
+- Single shared sprite scaled by species was the dominant cause of "all fish look the same"; pushing more variance through the same plane never reads at a glance.
+- Personality modulation under 0.2 is sub-threshold for a player making a 5–10 second judgement call. 0.4+ becomes a visible signal.
+- Pure stamina drain produces no panic. Periodic fish-initiated tension spikes are what give "I nearly snapped the line."
+
+**Next:**
+- STOP for human iPhone review through `/dev` QR.
+- Review the M3.1 checklist: silhouette legibility, cue clarity, same-species variance, surge feel during fight, loop preserved.
+- Only a human may create `v0.3.1-fish-feel-approved` after real-device review passes.
+
+---
+
+## v0.3.1-fish-feel reconciled onto remote main (2026-05-12)
+**Shipped:**
+- Rebased the M3.1 candidate (silhouettes, personality plumbing, surges, sharper cues) onto `origin/main` at `b260f50` so it stacks on top of the 16 in-flight PRs that landed during the candidate cycle: PWA service worker, multi-fish + depth-fade, foreshore terrain, foreshore-gated fish, result-card freeze, linear cast drag, smaller rod, lure drift on rod-release, fish-wide pond roam, camera-projected line, and screen-anchored rod butt.
+- Merged conflicting `tuning.ts` fish block by keeping M3.1's `personalityModulation: 0.42` + new personality/surge/rage constants AND the new `fishFacingMinSpeed`/`fishFacingTurnRate` from the rod-position PR.
+- Merged `fleeTarget` (fishStateMachine.ts) by keeping M3.1's personality-biased x reach AND HEAD's `fishableMaxZ` z-clamp.
+- Re-applied per-species silhouettes, surge scheduling, and sharper cue parameters into the GameClient rewrite landed by the PRs (camera projection, fixed rod anchor, multi-fish pool).
+
+**Cut:**
+- No new Phase B scope; no journal, gear, or rarity work added during reconciliation.
+
+**Discovered:**
+- The remote PRs partly overlap M3.1 territory: multi-fish (1–3 same-species, with depth fade) is now in place independently of M3.1's silhouette/personality work, so silhouette variety + same-species personality variance now apply across the small visible pool instead of just one active fish.
+- PWA scope (M7) landed early via PR #16; the next planned milestones can lean on that.
+
+**Next:**
+- STOP for human iPhone review through `/dev` QR against the M3.1 checklist plus a sanity check that the PR work (PWA install, multi-fish density, foreshore framing, rod anchor) still feels right.

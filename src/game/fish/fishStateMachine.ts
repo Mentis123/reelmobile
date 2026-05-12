@@ -80,7 +80,7 @@ export function updateFish(input: FishUpdateInput, fish: FishSnapshot): FishSnap
   if (input.hooked && state.kind !== 'hooked' && state.kind !== 'landed') {
     nextState = { kind: 'hooked', stamina: TUNING.fish.staminaLandThreshold + 0.9, rage: input.rng() };
   } else if (input.lureMoved && lurePos && shouldSpook(state.kind) && distance(fish.position, lurePos) < fearRadius(fish.instance)) {
-    nextState = { kind: 'flee', targetPos: fleeTarget(fish.position), sinceMs: 0 };
+    nextState = { kind: 'flee', targetPos: fleeTarget(fish.position, fish.instance.personality), sinceMs: 0 };
   } else if (state.kind === 'wander') {
     nextState = { ...state, sinceMs: state.sinceMs + dtMs };
     target = state.targetPos;
@@ -98,7 +98,12 @@ export function updateFish(input: FishUpdateInput, fish: FishSnapshot): FishSnap
     target = state.lurePos;
     speed = TUNING.fish.wanderSpeedMps * species.wanderSpeedMultiplier;
 
-    if (state.sinceMs > TUNING.fish.noticeDurationMs * species.commitThresholdMultiplier && lurePos) {
+    const noticeWait =
+      TUNING.fish.noticeDurationMs *
+      species.commitThresholdMultiplier *
+      hesitation(fish.instance.personality);
+
+    if (state.sinceMs > noticeWait && lurePos) {
       nextState = { kind: 'approach', lurePos, speed: TUNING.fish.approachSpeedMps * species.approachSpeedMultiplier * personality, sinceMs: 0 };
     }
   } else if (state.kind === 'approach') {
@@ -112,7 +117,11 @@ export function updateFish(input: FishUpdateInput, fish: FishSnapshot): FishSnap
     }
   } else if (state.kind === 'inspect') {
     const nextLurePos = lurePos ?? state.lurePos;
-    const inspectDuration = TUNING.fish.inspectDurationMs * species.inspectDurationMultiplier * species.commitThresholdMultiplier;
+    const inspectDuration =
+      TUNING.fish.inspectDurationMs *
+      species.inspectDurationMultiplier *
+      species.commitThresholdMultiplier *
+      hesitation(fish.instance.personality);
     const orbit = {
       x: nextLurePos.x + Math.cos(input.nowMs / inspectDuration) * TUNING.fish.inspectOrbitRadiusM,
       z: nextLurePos.z + Math.sin(input.nowMs / inspectDuration) * TUNING.fish.inspectOrbitRadiusM
@@ -122,7 +131,11 @@ export function updateFish(input: FishUpdateInput, fish: FishSnapshot): FishSnap
     speed = TUNING.fish.approachSpeedMps * species.approachSpeedMultiplier * state.patience;
 
     if (state.sinceMs > inspectDuration && lurePos) {
-      nextState = { kind: 'commit', lurePos, biteEtaMs: TUNING.fish.commitDurationMs * species.commitDurationMultiplier, sinceMs: 0 };
+      const biteEtaMs =
+        TUNING.fish.commitDurationMs *
+        species.commitDurationMultiplier *
+        hesitation(fish.instance.personality);
+      nextState = { kind: 'commit', lurePos, biteEtaMs, sinceMs: 0 };
     }
   } else if (state.kind === 'commit') {
     const nextLurePos = lurePos ?? state.lurePos;
@@ -135,21 +148,27 @@ export function updateFish(input: FishUpdateInput, fish: FishSnapshot): FishSnap
     }
   } else if (state.kind === 'bite') {
     if (input.nowMs - state.openedAt > TUNING.fish.biteNoHookMs) {
-      nextState = { kind: 'flee', targetPos: fleeTarget(fish.position), sinceMs: 0 };
+      nextState = { kind: 'flee', targetPos: fleeTarget(fish.position, fish.instance.personality), sinceMs: 0 };
     }
   } else if (state.kind === 'hooked') {
     const stamina = Math.max(0, state.stamina - TUNING.fish.fishStaminaDrainRate * species.staminaDrainMultiplier * input.dt);
+    const baseline =
+      TUNING.fish.rageBaseline + fish.instance.personality * TUNING.fish.personalityModulation * 0.5;
+    const decayedRage = Math.max(baseline, state.rage - TUNING.fish.rageDecayPerSecond * input.dt);
     nextState = stamina <= TUNING.fish.staminaLandThreshold
       ? { kind: 'landed' }
-      : { kind: 'hooked', stamina, rage: state.rage };
-    target = fleeTarget(fish.position);
-    speed = TUNING.fish.hookedPullSpeedMps * species.hookedPullMultiplier + state.rage * TUNING.tension.tensionBurstRate;
+      : { kind: 'hooked', stamina, rage: decayedRage };
+    target = fleeTarget(fish.position, fish.instance.personality);
+    speed = TUNING.fish.hookedPullSpeedMps * species.hookedPullMultiplier + decayedRage * TUNING.tension.tensionBurstRate;
   } else if (state.kind === 'flee') {
     nextState = { ...state, sinceMs: state.sinceMs + dtMs };
     target = state.targetPos;
     speed = TUNING.fish.approachSpeedMps * species.approachSpeedMultiplier;
 
-    if (state.sinceMs > TUNING.fish.fleeDurationMs) {
+    const fleeDuration =
+      TUNING.fish.fleeDurationMs * hesitation(fish.instance.personality);
+
+    if (state.sinceMs > fleeDuration) {
       nextState = { kind: 'wander', targetPos: nextWanderTarget(input.rng), sinceMs: 0 };
     }
   }
@@ -183,9 +202,15 @@ function shouldSpook(kind: FishState['kind']): boolean {
   return kind === 'wander' || kind === 'notice' || kind === 'approach' || kind === 'inspect';
 }
 
-function fleeTarget(position: Vec2): Vec2 {
+function hesitation(personality: number): number {
+  return Math.max(0.4, 1 - personality * TUNING.fish.personalityHesitation);
+}
+
+function fleeTarget(position: Vec2, personality = 0): Vec2 {
+  const reach = TUNING.world.fishWanderRadiusM * (1 + personality * TUNING.fish.personalityModulation);
+  const bias = Math.sign(position.x) || (personality >= 0 ? 1 : -1);
   return {
-    x: position.x + TUNING.world.fishWanderRadiusM,
-    z: Math.min(position.z + TUNING.world.fishWanderRadiusM, TUNING.world.fishableMaxZ)
+    x: position.x + bias * reach,
+    z: Math.min(position.z + reach, TUNING.world.fishableMaxZ)
   };
 }

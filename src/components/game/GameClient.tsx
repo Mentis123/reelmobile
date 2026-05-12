@@ -7,7 +7,7 @@ import * as THREE from 'three';
 
 import { ProceduralAudio } from '@/game/audio/procedural';
 import { createDecorFish, createInitialFish, type FishSnapshot, updateFish } from '@/game/fish/fishStateMachine';
-import { pickSpeciesCue, speciesTuning, type FishCueKind } from '@/game/fish/species';
+import { pickSpeciesCue, speciesTuning, SPECIES_IDS, type FishCueKind, type SpeciesId } from '@/game/fish/species';
 import { add, clamp, clampToPond, distance, lerp, lerpVec, normalize, scale, seededRandom, sub, type Vec2 } from '@/game/math/vec';
 import { createId, dailySeed, type Catch, type Failure, useSessionStore } from '@/game/persistence/sessionStore';
 import { createVerletLine, type VerletLine, updateVerletLine } from '@/game/physics/verletLine';
@@ -62,6 +62,7 @@ type Runtime = {
   nextRealCueAt: number;
   nextFalseCueAt: number;
   nextStruggleRippleAt: number;
+  nextSurgeAt: number;
   spawnIndex: number;
   realCueIndex: number;
   restoring: boolean;
@@ -130,7 +131,6 @@ type SceneProps = {
 const ASSETS = {
   waterNormal: '/assets/textures/water_normal.webp',
   dockPlanks: '/assets/textures/dock_planks.webp',
-  fishGeneric: '/assets/sprites/fish_generic.webp',
   lureDefault: '/assets/sprites/lure_default.webp'
 } as const;
 
@@ -524,6 +524,7 @@ export function GameClient() {
       runtime.current.hookJerkUntil = performance.now() + TUNING.timing.hookJerkMs;
       runtime.current.lureMovedUntil = performance.now() + TUNING.timing.hookJerkMs;
       runtime.current.lureFlashUntil = performance.now() + TUNING.timing.hookJerkMs;
+      runtime.current.nextSurgeAt = scheduleNextSurge(runtime.current, performance.now());
       runtime.current.state = {
         kind: 'hooked',
         hookedAt: Date.now(),
@@ -937,12 +938,15 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
   const fishFacingAnglesRef = useRef<Array<number | null>>(
     Array.from({ length: TUNING.world.fishMaxVisible }, () => null)
   );
-  const [waterNormalTexture, dockTexture, fishTexture, lureTexture] = useLoader(THREE.TextureLoader, [
+  const [waterNormalTexture, dockTexture, lureTexture] = useLoader(THREE.TextureLoader, [
     ASSETS.waterNormal,
     ASSETS.dockPlanks,
-    ASSETS.fishGeneric,
     ASSETS.lureDefault
   ]);
+  const silhouettes = useMemo(() => createSpeciesSilhouettes(), []);
+  const lastSilhouetteSpecies = useRef<Array<SpeciesId | null>>(
+    Array.from({ length: TUNING.world.fishMaxVisible }, () => null)
+  );
   const setFishState = useGameStore((state) => state.setFishState);
   const setGameState = useGameStore((state) => state.setGameState);
   const setTension = useGameStore((state) => state.setTension);
@@ -971,9 +975,8 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
     dockTexture.colorSpace = THREE.SRGBColorSpace;
     dockTexture.needsUpdate = true;
 
-    fishTexture.colorSpace = THREE.SRGBColorSpace;
     lureTexture.colorSpace = THREE.SRGBColorSpace;
-  }, [dockTexture, fishTexture, lureTexture, waterNormalTexture]);
+  }, [dockTexture, lureTexture, waterNormalTexture]);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -1217,13 +1220,19 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
 
       mesh.visible = true;
       mesh.position.set(snapshot.position.x, TUNING.world.fishDepthY, snapshot.position.z);
-      const species = speciesTuning(snapshot.instance.species);
+      const speciesId = snapshot.instance.species;
+      const species = speciesTuning(speciesId);
       mesh.scale.set(
         species.widthM * (snapshot.state.kind === 'commit' ? 1 + TUNING.fish.personalityScalar : 1),
         species.heightM,
         1
       );
       const material = mesh.material as THREE.MeshBasicMaterial;
+      if (lastSilhouetteSpecies.current[i] !== speciesId) {
+        material.map = silhouettes.get(speciesId) ?? null;
+        material.needsUpdate = true;
+        lastSilhouetteSpecies.current[i] = speciesId;
+      }
       const baseOpacity = snapshot.state.kind === 'commit' || snapshot.state.kind === 'bite'
         ? TUNING.world.fishCommitOpacity
         : TUNING.world.fishCueOpacity;
@@ -1312,7 +1321,7 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
           visible={false}
         >
           <planeGeometry args={[1, 1]} />
-          <meshBasicMaterial map={fishTexture} color="#111718" transparent opacity={TUNING.world.fishCueOpacity} depthWrite={false} side={THREE.DoubleSide} />
+          <meshBasicMaterial map={silhouettes.get(SPECIES_IDS[0]) ?? null} color="#111718" transparent opacity={TUNING.world.fishCueOpacity} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
       ))}
       <mesh ref={lureRef} visible={false} renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[TUNING.world.lureStart.x, TUNING.world.lureSurfaceY, TUNING.world.lureStart.z]}>
@@ -1418,18 +1427,20 @@ function WaterRipple({ ripple }: { ripple: Ripple }) {
     }
 
     if (materialRef.current) {
-      materialRef.current.opacity = (1 - progress) * (ripple.falseCue ? 0.22 : 0.48);
+      const peak = ripple.falseCue ? TUNING.fish.cueFalsePeakOpacity : TUNING.fish.cueRealPeakOpacity;
+      materialRef.current.opacity = (1 - progress) * peak;
     }
   });
 
-  const opacity = ripple.falseCue ? 0.22 : 0.48;
+  const opacity = ripple.falseCue ? TUNING.fish.cueFalsePeakOpacity : TUNING.fish.cueRealPeakOpacity;
   const color = cueColor(ripple);
 
   if (ripple.cue === 'bubble_trail') {
+    const beadCount = TUNING.fish.cueBubbleTrailCount;
     return (
       <group position={[ripple.pos.x, TUNING.world.waterY + 0.018, ripple.pos.z]}>
-        {[0, 1, 2].map((index) => (
-          <mesh key={index} ref={index === 0 ? setObjectRef : undefined} renderOrder={3} rotation={[-Math.PI / 2, 0, 0]} position={[(index - 1) * ripple.radius * 0.62, 0, -index * ripple.radius * 0.44]}>
+        {Array.from({ length: beadCount }, (_, index) => (
+          <mesh key={index} ref={index === 0 ? setObjectRef : undefined} renderOrder={3} rotation={[-Math.PI / 2, 0, 0]} position={[((index - (beadCount - 1) / 2)) * ripple.radius * 0.54, 0, -index * ripple.radius * 0.4]}>
             <ringGeometry args={[ripple.radius * 0.16, ripple.radius * 0.26, 16]} />
             <meshBasicMaterial ref={index === 0 ? materialRef : undefined} color={color} transparent opacity={opacity} depthWrite={false} side={THREE.DoubleSide} />
           </mesh>
@@ -1451,7 +1462,7 @@ function WaterRipple({ ripple }: { ripple: Ripple }) {
     return (
       <mesh ref={setObjectRef} renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[ripple.pos.x, TUNING.world.waterY + 0.012, ripple.pos.z]}>
         <circleGeometry args={[ripple.radius, 24]} />
-        <meshBasicMaterial ref={materialRef} color={color} transparent opacity={opacity * 0.58} depthWrite={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial ref={materialRef} color={color} transparent opacity={opacity * TUNING.fish.cueSiltOpacityMultiplier} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
     );
   }
@@ -1822,6 +1833,7 @@ function createRuntime(seed: string, spawnIndex = 0): Runtime {
     nextRealCueAt: nowMs() + TUNING.fish.cueRealEveryMs * fishSpecies.cueEveryMultiplier,
     nextFalseCueAt: nowMs() + lerp(TUNING.fish.cueFalseMinMs, TUNING.fish.cueFalseMaxMs, rng()),
     nextStruggleRippleAt: 0,
+    nextSurgeAt: 0,
     spawnIndex,
     realCueIndex: 0,
     restoring: false,
@@ -1842,6 +1854,24 @@ function updateFight(runtime: Runtime, dt: number, onResult: SceneProps['onResul
 
   const species = speciesTuning(runtime.fish.instance.species);
   const personalityPull = 1 + runtime.fish.instance.personality * TUNING.fish.personalityModulation;
+  const now = performance.now();
+
+  if (runtime.nextSurgeAt > 0 && now >= runtime.nextSurgeAt) {
+    const spike = species.surgeTensionSpike * personalityPull;
+    runtime.tension = clamp(runtime.tension + spike, 0, 1);
+    if (runtime.fish.state.kind === 'hooked') {
+      runtime.fish.state = {
+        ...runtime.fish.state,
+        rage: Math.max(runtime.fish.state.rage, TUNING.fish.fightSurgeRageBoost * personalityPull)
+      };
+    }
+    audio.fishSplash(species.surgeAudioIntensity);
+    if (typeof navigator !== 'undefined') {
+      navigator.vibrate?.(TUNING.haptics.fishSurge);
+    }
+    runtime.nextSurgeAt = scheduleNextSurge(runtime, now);
+  }
+
   const fishPull = runtime.fish.state.kind === 'hooked'
     ? runtime.fish.state.rage * species.hookedPullMultiplier * personalityPull
     : TUNING.fish.personalityScalar;
@@ -1891,6 +1921,14 @@ function updateFight(runtime: Runtime, dt: number, onResult: SceneProps['onResul
 
 function biteContactBlend(fish: FishSnapshot): number {
   return TUNING.fish.personalityScalar * (1 + fish.instance.personality * TUNING.fish.personalityModulation);
+}
+
+function scheduleNextSurge(runtime: Runtime, now: number): number {
+  const species = speciesTuning(runtime.fish.instance.species);
+  const surgeMul = Math.max(0.5, 1 + runtime.fish.instance.personality * TUNING.fish.personalityModulation);
+  const range = species.surgeIntervalMaxMs - species.surgeIntervalMinMs;
+  const intervalMs = (species.surgeIntervalMinMs + runtime.rng() * range) / surgeMul;
+  return now + intervalMs;
 }
 
 function cueDuration(cue: FishCueKind): number {
@@ -2174,6 +2212,159 @@ function fishDepthVisibility(position: Vec2): number {
 function fishFadeMultiplier(nowMs: number, phase: number, periodMs: number): number {
   const t = (Math.sin((nowMs / periodMs) * Math.PI * 2 + phase) + 1) * 0.5;
   return lerp(TUNING.world.fishFadeMinMultiplier, TUNING.world.fishFadeMaxMultiplier, t);
+}
+
+function createSpeciesSilhouettes(): Map<SpeciesId, THREE.CanvasTexture> {
+  const map = new Map<SpeciesId, THREE.CanvasTexture>();
+
+  for (const species of SPECIES_IDS) {
+    const texture = createSpeciesSilhouette(species);
+    if (texture) {
+      map.set(species, texture);
+    }
+  }
+
+  return map;
+}
+
+function createSpeciesSilhouette(species: SpeciesId): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  const tuning = speciesTuning(species);
+  const aspect = tuning.widthM / tuning.heightM;
+  const targetHeight = 80;
+  const targetWidth = Math.max(64, Math.round(targetHeight * aspect));
+  const canvas = document.createElement('canvas');
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    return null;
+  }
+
+  ctx.fillStyle = '#0d1212';
+  drawSpeciesSilhouette(species, ctx, targetWidth, targetHeight);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  texture.anisotropy = 4;
+  return texture;
+}
+
+function drawSpeciesSilhouette(species: SpeciesId, ctx: CanvasRenderingContext2D, w: number, h: number) {
+  const cy = h / 2;
+
+  switch (species) {
+    case 'bronze_carp': {
+      ctx.beginPath();
+      ctx.moveTo(w * 0.06, cy);
+      ctx.bezierCurveTo(w * 0.05, cy - h * 0.46, w * 0.34, cy - h * 0.48, w * 0.54, cy - h * 0.34);
+      ctx.bezierCurveTo(w * 0.7, cy - h * 0.28, w * 0.76, cy - h * 0.18, w * 0.79, cy);
+      ctx.lineTo(w * 0.97, cy - h * 0.34);
+      ctx.lineTo(w * 0.88, cy);
+      ctx.lineTo(w * 0.97, cy + h * 0.34);
+      ctx.lineTo(w * 0.79, cy);
+      ctx.bezierCurveTo(w * 0.76, cy + h * 0.18, w * 0.7, cy + h * 0.28, w * 0.54, cy + h * 0.34);
+      ctx.bezierCurveTo(w * 0.34, cy + h * 0.48, w * 0.05, cy + h * 0.46, w * 0.06, cy);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(w * 0.42, cy + h * 0.32);
+      ctx.lineTo(w * 0.6, cy + h * 0.5);
+      ctx.lineTo(w * 0.52, cy + h * 0.32);
+      ctx.closePath();
+      ctx.fill();
+      return;
+    }
+    case 'moss_bass': {
+      ctx.beginPath();
+      ctx.moveTo(w * 0.04, cy - h * 0.04);
+      ctx.bezierCurveTo(w * 0.04, cy - h * 0.4, w * 0.32, cy - h * 0.44, w * 0.58, cy - h * 0.36);
+      ctx.bezierCurveTo(w * 0.72, cy - h * 0.32, w * 0.78, cy - h * 0.2, w * 0.8, cy);
+      ctx.lineTo(w * 0.96, cy - h * 0.38);
+      ctx.lineTo(w * 0.86, cy);
+      ctx.lineTo(w * 0.96, cy + h * 0.38);
+      ctx.lineTo(w * 0.8, cy);
+      ctx.bezierCurveTo(w * 0.78, cy + h * 0.2, w * 0.72, cy + h * 0.32, w * 0.58, cy + h * 0.36);
+      ctx.bezierCurveTo(w * 0.32, cy + h * 0.44, w * 0.04, cy + h * 0.4, w * 0.04, cy + h * 0.04);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(w * 0.36, cy - h * 0.36);
+      ctx.lineTo(w * 0.46, cy - h * 0.58);
+      ctx.lineTo(w * 0.5, cy - h * 0.36);
+      ctx.closePath();
+      ctx.fill();
+      return;
+    }
+    case 'moon_minnow': {
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, cy);
+      ctx.bezierCurveTo(w * 0.1, cy - h * 0.22, w * 0.4, cy - h * 0.24, w * 0.62, cy - h * 0.18);
+      ctx.bezierCurveTo(w * 0.72, cy - h * 0.16, w * 0.78, cy - h * 0.1, w * 0.8, cy);
+      ctx.lineTo(w * 0.97, cy - h * 0.4);
+      ctx.lineTo(w * 0.85, cy);
+      ctx.lineTo(w * 0.97, cy + h * 0.4);
+      ctx.lineTo(w * 0.8, cy);
+      ctx.bezierCurveTo(w * 0.78, cy + h * 0.1, w * 0.72, cy + h * 0.16, w * 0.62, cy + h * 0.18);
+      ctx.bezierCurveTo(w * 0.4, cy + h * 0.24, w * 0.1, cy + h * 0.22, w * 0.1, cy);
+      ctx.closePath();
+      ctx.fill();
+      return;
+    }
+    case 'old_kingfish': {
+      ctx.beginPath();
+      ctx.moveTo(w * 0.03, cy);
+      ctx.bezierCurveTo(w * 0.03, cy - h * 0.36, w * 0.28, cy - h * 0.44, w * 0.5, cy - h * 0.44);
+      ctx.bezierCurveTo(w * 0.68, cy - h * 0.44, w * 0.78, cy - h * 0.3, w * 0.82, cy);
+      ctx.lineTo(w * 0.98, cy - h * 0.46);
+      ctx.lineTo(w * 0.88, cy);
+      ctx.lineTo(w * 0.98, cy + h * 0.46);
+      ctx.lineTo(w * 0.82, cy);
+      ctx.bezierCurveTo(w * 0.78, cy + h * 0.3, w * 0.68, cy + h * 0.44, w * 0.5, cy + h * 0.44);
+      ctx.bezierCurveTo(w * 0.28, cy + h * 0.44, w * 0.03, cy + h * 0.36, w * 0.03, cy);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(w * 0.3, cy - h * 0.42);
+      ctx.lineTo(w * 0.5, cy - h * 0.66);
+      ctx.lineTo(w * 0.54, cy - h * 0.42);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(w * 0.34, cy + h * 0.42);
+      ctx.lineTo(w * 0.48, cy + h * 0.6);
+      ctx.lineTo(w * 0.5, cy + h * 0.42);
+      ctx.closePath();
+      ctx.fill();
+      return;
+    }
+    case 'reed_pike': {
+      ctx.beginPath();
+      ctx.moveTo(w * 0.01, cy);
+      ctx.bezierCurveTo(w * 0.04, cy - h * 0.12, w * 0.32, cy - h * 0.22, w * 0.64, cy - h * 0.22);
+      ctx.bezierCurveTo(w * 0.76, cy - h * 0.22, w * 0.84, cy - h * 0.16, w * 0.86, cy);
+      ctx.lineTo(w * 0.96, cy - h * 0.28);
+      ctx.lineTo(w * 0.9, cy);
+      ctx.lineTo(w * 0.96, cy + h * 0.28);
+      ctx.lineTo(w * 0.86, cy);
+      ctx.bezierCurveTo(w * 0.84, cy + h * 0.16, w * 0.76, cy + h * 0.22, w * 0.64, cy + h * 0.22);
+      ctx.bezierCurveTo(w * 0.32, cy + h * 0.22, w * 0.04, cy + h * 0.12, w * 0.01, cy);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(w * 0.62, cy - h * 0.22);
+      ctx.lineTo(w * 0.74, cy - h * 0.46);
+      ctx.lineTo(w * 0.78, cy - h * 0.22);
+      ctx.closePath();
+      ctx.fill();
+      return;
+    }
+  }
 }
 
 function nowMs(): number {

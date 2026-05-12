@@ -4,7 +4,7 @@ export type DevChecklistItem = {
 };
 
 export type DevChecklist = {
-  milestone: 'm0' | 'm1' | 'm1.5' | 'm2' | 'm3';
+  milestone: 'm0' | 'm1' | 'm1.5' | 'm2' | 'm3' | 'm3.1';
   title: string;
   items: DevChecklistItem[];
 };
@@ -74,10 +74,25 @@ export const checklists: Record<DevChecklist['milestone'], DevChecklist> = {
       { id: 'density', text: 'Does fish density feel right: not crowded, not empty?' },
       { id: 'loop-preserved', text: 'Are casting, twitch, rod control, bite, hook, fight, failures, result, debug HUD, /dev, and /tune preserved?' }
     ]
+  },
+  'm3.1': {
+    milestone: 'm3.1',
+    title: 'M3.1 fish feel-repair real-iPhone gate',
+    items: [
+      { id: 'silhouettes', text: 'Can I tell pike from carp from minnow by body shape before I see what they do?' },
+      { id: 'cue-signatures', text: 'Do bubbles, glints, rises, silt, and wakes read more clearly than before?' },
+      { id: 'same-species', text: 'Do two encounters of the same species feel different in approach, hesitation, or fight?' },
+      { id: 'fight', text: 'During the fight, does the fish surge back against the reel so I have to ease off?' },
+      { id: 'loop-preserved', text: 'Are casting, twitch, rod control, bite, hook, failures, result, debug HUD, /dev, and /tune preserved?' }
+    ]
   }
 };
 
 export function getChecklist(milestone: string): DevChecklist {
+  if (milestone === 'm3.1') {
+    return checklists['m3.1'];
+  }
+
   if (milestone === 'm3') {
     return checklists.m3;
   }

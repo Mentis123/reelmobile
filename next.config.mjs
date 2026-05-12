@@ -3,10 +3,14 @@ function currentCandidateTag() {
     return process.env.NEXT_PUBLIC_REEL_CANDIDATE_TAG;
   }
 
-  return 'v0.3-fish-variety-candidate';
+  return 'v0.3.1-fish-feel-candidate';
 }
 
 function currentMilestone(tag) {
+  if (tag.startsWith('v0.3.1-')) {
+    return 'm3.1';
+  }
+
   if (tag.startsWith('v0.3-')) {
     return 'm3';
   }
