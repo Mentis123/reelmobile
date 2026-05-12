@@ -6,7 +6,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import * as THREE from 'three';
 
 import { ProceduralAudio } from '@/game/audio/procedural';
-import { createDecorFish, createInitialFish, type FishSnapshot, updateFish } from '@/game/fish/fishStateMachine';
+import { createInitialFish, type FishSnapshot, updateFish } from '@/game/fish/fishStateMachine';
 import { pickSpeciesCue, speciesTuning, SPECIES_IDS, type FishCueKind, type SpeciesId } from '@/game/fish/species';
 import { add, clamp, clampToPond, distance, lerp, lerpVec, normalize, scale, seededRandom, sub, type Vec2 } from '@/game/math/vec';
 import { createId, dailySeed, type Catch, type Failure, useSessionStore } from '@/game/persistence/sessionStore';
@@ -1707,8 +1707,6 @@ function Foreshore() {
       <meshBasicMaterial
         map={texture}
         color="#a89878"
-        transparent
-        depthWrite={false}
         side={THREE.DoubleSide}
       />
     </mesh>
@@ -1800,7 +1798,7 @@ function createRuntime(seed: string, spawnIndex = 0): Runtime {
   const fishSpecies = speciesTuning(fish.instance.species);
   const extraCount = Math.floor(rng() * TUNING.world.fishMaxVisible);
   const decorFish: DecorFish[] = Array.from({ length: extraCount }, () => ({
-    snapshot: createDecorFish(rng, fish.instance.species),
+    snapshot: createInitialFish(rng),
     fadePhase: rng() * Math.PI * 2,
     fadePeriodMs: lerp(TUNING.world.fishFadeMinPeriodMs, TUNING.world.fishFadeMaxPeriodMs, rng())
   }));
