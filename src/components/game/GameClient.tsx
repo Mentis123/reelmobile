@@ -1299,8 +1299,8 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
 
   return (
     <>
-      <color attach="background" args={['#1a2b30']} />
-      <fog attach="fog" args={['#1a2b30', 10, 18]} />
+      <color attach="background" args={['#3d6068']} />
+      <fog attach="fog" args={['#3d6068', 10, 18]} />
       <ambientLight intensity={0.9} />
       <directionalLight position={[2.4, 5, 3]} intensity={1.35} />
       <BackgroundCard />
@@ -1338,8 +1338,8 @@ function PondWater({ runtime, normalMap }: { runtime: React.MutableRefObject<Run
     uTime: { value: 0 },
     uFocus: { value: 0 },
     uNormalMap: { value: normalMap },
-    uDeep: { value: new THREE.Color('#1a2b30') },
-    uShallow: { value: new THREE.Color('#2f4948') },
+    uDeep: { value: new THREE.Color('#3d6068') },
+    uShallow: { value: new THREE.Color('#6a958f') },
     uMoonlight: { value: new THREE.Color('#c8c4b2') },
     uGlareReduction: { value: TUNING.input.focusGlareReduction }
   }), [normalMap]);
@@ -1601,8 +1601,8 @@ function BackgroundCard() {
 
     if (ctx) {
       const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      gradient.addColorStop(0, '#172629');
-      gradient.addColorStop(1, '#223732');
+      gradient.addColorStop(0, '#3a5a60');
+      gradient.addColorStop(1, '#4a6b66');
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = 'rgba(74, 93, 58, 0.78)';
