@@ -2,7 +2,7 @@
 /* eslint-disable */
 'use strict';
 
-const CACHE_VERSION = 'd5a808ba2447';
+const CACHE_VERSION = '64f39ff563d0';
 const CACHE_NAME = 'reel-precache-' + CACHE_VERSION;
 const RUNTIME_CACHE = 'reel-runtime-' + CACHE_VERSION;
 const PRECACHE_URLS = [
@@ -15,6 +15,7 @@ const PRECACHE_URLS = [
   "/game",
   "/icon-maskable.svg",
   "/icon.svg",
+  "/images/reel-mobile-splash.png",
   "/manifest.webmanifest"
 ];
 
@@ -80,6 +81,7 @@ function isHtmlRequest(request) {
 
 function isCacheableAsset(url) {
   if (url.pathname.startsWith('/assets/')) return true;
+  if (url.pathname.startsWith('/images/')) return true;
   if (url.pathname.startsWith('/_next/static/')) return true;
   if (url.pathname === '/manifest.webmanifest') return true;
   if (url.pathname === '/icon.svg' || url.pathname === '/icon-maskable.svg') return true;

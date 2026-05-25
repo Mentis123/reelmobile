@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+/* eslint-disable @next/next/no-img-element */
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -34,13 +34,12 @@ export function SplashGate() {
           aria-label="Continue to Vibe Academy splash"
           onClick={advance}
         >
-          <Image
+          {/* Direct public image path keeps the splash independent of Next's image optimizer. */}
+          <img
             src="/images/reel-mobile-splash.png"
             alt="Reel Mobile"
             className="splash-title-image"
-            fill
-            priority
-            sizes="100vw"
+            draggable={false}
           />
           <span className="splash-hint">Tap to continue</span>
         </button>

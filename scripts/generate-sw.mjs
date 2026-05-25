@@ -13,6 +13,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, '..');
 const publicDir = join(repoRoot, 'public');
 const assetsDir = join(publicDir, 'assets');
+const imagesDir = join(publicDir, 'images');
 const swPath = join(publicDir, 'sw.js');
 
 async function walk(dir) {
@@ -35,15 +36,23 @@ async function fileHash(path) {
 }
 
 async function collectAssetUrls() {
-  let assetFiles = [];
-  try {
-    assetFiles = await walk(assetsDir);
-  } catch (err) {
-    if (err.code !== 'ENOENT') throw err;
+  const roots = [
+    { dir: assetsDir, urlBase: 'assets' },
+    { dir: imagesDir, urlBase: 'images' }
+  ];
+  const urls = [];
+  for (const root of roots) {
+    let files = [];
+    try {
+      files = await walk(root.dir);
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err;
+    }
+    urls.push(
+      ...files.map((p) => '/' + posix.join(root.urlBase, relative(root.dir, p).split(/[\\/]+/).join('/')))
+    );
   }
-  return assetFiles
-    .map((p) => '/' + posix.join('assets', relative(assetsDir, p).split(/[\\/]+/).join('/')))
-    .sort();
+  return urls.sort();
 }
 
 async function staticPublicUrls() {
@@ -166,6 +175,7 @@ function isHtmlRequest(request) {
 
 function isCacheableAsset(url) {
   if (url.pathname.startsWith('/assets/')) return true;
+  if (url.pathname.startsWith('/images/')) return true;
   if (url.pathname.startsWith('/_next/static/')) return true;
   if (url.pathname === '/manifest.webmanifest') return true;
   if (url.pathname === '/icon.svg' || url.pathname === '/icon-maskable.svg') return true;
