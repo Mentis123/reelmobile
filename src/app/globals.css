@@ -559,16 +559,25 @@ code {
   background: #000;
   color: var(--ui-gold);
   cursor: pointer;
+  overflow: hidden;
   animation: splashIn 800ms ease-out both;
 }
 
+.splash-gate::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: url("/images/reel-mobile-splash.png?v=20260525-game-splash") center / cover no-repeat;
+}
+
 .splash-gate span {
-  display: block;
-  width: min(78vw, 420px);
-  aspect-ratio: 3.5;
+  position: absolute;
   overflow: hidden;
-  background: url("/assets/ui/wordmark.svg") center / contain no-repeat;
-  color: transparent;
+  width: 1px;
+  height: 1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 @keyframes splashIn {

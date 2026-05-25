@@ -36,7 +36,7 @@ export function SplashGate() {
         >
           {/* Direct public image path keeps the splash independent of Next's image optimizer. */}
           <img
-            src="/images/reel-mobile-splash.png"
+            src="/images/reel-mobile-splash.png?v=20260525-game-splash"
             alt="Reel Mobile"
             className="splash-title-image"
             draggable={false}
