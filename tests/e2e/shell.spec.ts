@@ -52,6 +52,8 @@ test('M1 vertical slice smoke', async ({ page }) => {
   await page.goto('/game?debug=1', { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('tap-to-begin')).toBeVisible();
   await page.getByTestId('tap-to-begin').tap();
+  await expect(page.getByText('Build yours at Vibe Academy')).toBeVisible();
+  await page.getByTestId('tap-to-begin').tap();
   await expect(page.getByTestId('tap-to-begin')).toBeHidden();
   await expect(page.locator('canvas')).toBeVisible();
   await expect(page.getByTestId('debug-hud')).toBeVisible();

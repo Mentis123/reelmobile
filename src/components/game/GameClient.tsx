@@ -1,10 +1,12 @@
 'use client';
 
+/* eslint-disable @next/next/no-img-element */
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 
+import { OfflineStatus } from '@/components/pwa/OfflineStatus';
 import { ProceduralAudio } from '@/game/audio/procedural';
 import { createInitialFish, type FishSnapshot, updateFish } from '@/game/fish/fishStateMachine';
 import { pickSpeciesCue, speciesTuning, SPECIES_IDS, type FishCueKind, type SpeciesId } from '@/game/fish/species';
@@ -97,6 +99,8 @@ type FocusIndicator = {
   createdAt: number;
 };
 
+type SplashStage = 'primary' | 'secondary';
+
 type ViewportSize = {
   width: number;
   height: number;
@@ -139,6 +143,7 @@ export function GameClient() {
   const seed = searchParams.get('seed') ?? dailySeed();
   const queryDebug = searchParams.get('debug') === '1';
   const [started, setStarted] = useState(false);
+  const [splashStage, setSplashStage] = useState<SplashStage>('primary');
   const [debugOpen, setDebugOpen] = useState(queryDebug || (process.env.NODE_ENV === 'development' && TUNING.ui.debugDefaultDev));
   const [aimPreview, setAimPreview] = useState<AimPreview | null>(null);
   const [overlay, setOverlay] = useState<Overlay>({ linePoints: [], rodTip: { x: 0, y: 0 }, lure: { x: 0, y: 0 }, aimTarget: null });
@@ -178,6 +183,7 @@ export function GameClient() {
     runtime.current = createRuntime(seed);
     startedRef.current = false;
     setStarted(false);
+    setSplashStage('primary');
     setSeed(seed);
     setGameState({ kind: 'splash' });
     setFishState(runtime.current.fish.state);
@@ -250,6 +256,19 @@ export function GameClient() {
     setGameState(runtime.current.state);
     setStarted(true);
   }, [seed, sessionStore, setGameState]);
+
+  const advanceSplash = useCallback(() => {
+    if (startedRef.current) {
+      return;
+    }
+
+    if (splashStage === 'primary') {
+      setSplashStage('secondary');
+      return;
+    }
+
+    begin();
+  }, [begin, splashStage]);
 
   const finishResult = useCallback((outcome: 'catch' | FailureKind, peakTension: number, nearSnaps: number, hookedAt: number) => {
     if (runtime.current.state.kind === 'result') {
@@ -831,10 +850,34 @@ export function GameClient() {
         </div>
       ) : null}
 
-      {started ? null : (
+      {started ? null : splashStage === 'primary' ? (
         <button
-          className="splash-gate"
+          className="splash-title-screen"
           type="button"
+          aria-label="Continue to Vibe Academy splash"
+          onPointerDown={(event) => {
+            event.stopPropagation();
+          }}
+          onPointerUp={(event) => {
+            event.stopPropagation();
+            advanceSplash();
+          }}
+          onClick={advanceSplash}
+          data-testid="tap-to-begin"
+        >
+          <img
+            src="/images/reel-mobile-splash.png?v=20260525-game-splash"
+            alt="Reel Mobile"
+            className="splash-title-image"
+            draggable={false}
+          />
+          <span className="splash-hint">Tap to continue</span>
+        </button>
+      ) : (
+        <button
+          className="splash-credit-screen"
+          type="button"
+          aria-label="Enter the pond"
           onPointerDown={(event) => {
             event.stopPropagation();
           }}
@@ -845,7 +888,34 @@ export function GameClient() {
           onClick={begin}
           data-testid="tap-to-begin"
         >
-          <span>Reel Mobile</span>
+          <span className="splash-credit-card">
+            <span className="splash-kicker">Birb Labs Artefact</span>
+            <span className="splash-title">Build yours at Vibe Academy</span>
+            <span className="splash-copy">
+              From the mind of Mentis. A small playable pond, shipped as a
+              breakable toy for builders to inspect, remix, and learn from.
+            </span>
+            <span className="splash-links">
+              <a
+                href="https://www.vibeacademy.com.au/"
+                target="_blank"
+                rel="noreferrer"
+                onClick={(event) => event.stopPropagation()}
+              >
+                Vibe Academy
+              </a>
+              <a
+                href="https://x.com/adam_x_mentis"
+                target="_blank"
+                rel="noreferrer"
+                onClick={(event) => event.stopPropagation()}
+              >
+                Mentis
+              </a>
+            </span>
+            <OfflineStatus />
+          </span>
+          <span className="splash-hint">Tap to start</span>
         </button>
       )}
 

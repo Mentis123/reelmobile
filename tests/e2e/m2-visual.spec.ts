@@ -17,6 +17,7 @@ for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto('/game?debug=1', { waitUntil: 'domcontentloaded' });
     await page.getByTestId('tap-to-begin').tap();
+    await page.getByTestId('tap-to-begin').tap();
     await expect(page.locator('canvas')).toBeVisible();
     await page.waitForTimeout(1200);
 
