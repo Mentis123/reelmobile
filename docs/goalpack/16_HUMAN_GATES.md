@@ -1,6 +1,8 @@
 # 16_HUMAN_GATES
 
-The agent stops at gates. The human decides whether to proceed. Gates exist because the agent cannot test on a real iPhone, and a real iPhone is the canary.
+The workflow stops at gates. The human decides whether to proceed. A gate exists wherever a **real iPhone is the canary** — wherever feel, the paragraph, on-device/OLED visual coherence, perceived performance/jank, or audio is the thing being judged. No agent — single or swarm — can feel the game on a real device, so those gates are mandatory and human (`18_ULTRACODE_PARADIGM.md` §4).
+
+> *Amendment in force:* under ultracode (`18_ULTRACODE_PARADIGM.md`), the workflow no longer stops at *every* step. For **machine-checkable** concerns — correctness, typecheck/lint/build, performance budgets, do-not-build adherence, regression — it adversarially self-verifies (independent artifact-producing verifiers; one artifact-backed refutation blocks; two clean attempts certify) and may build a whole milestone autonomously before tagging a candidate. The human gate below stays mandatory for canary concerns and is never delegable to an agent. This section's per-milestone expectations, beyond-gate triggers, and the five-strangers playtest remain in force.
 
 ## The /dev page
 
@@ -137,3 +139,13 @@ After `v0.8-performance-approved`, before "shipped":
 - Note: do they understand casting? Do they notice fish? Do they smile when something bites? Do they hand the phone back willingly or keep playing?
 
 This is the **real** validation. It happens outside this document. But the docs lead here.
+
+## How this section reads under ultracode
+
+The **candidate → human-test → approved** loop in this document is unchanged in *authority*: only a human, on a real iPhone, creates `*-approved`. What ultracode changes is *when the workflow is allowed to keep going without you*. See `18_ULTRACODE_PARADIGM.md`:
+
+- §3 — the adversarial self-verification bar a candidate must clear (independent artifact-producing verifiers; one artifact-backed refutation blocks; performance measured not assumed, averages **and** the p99/max jank tail).
+- §4 — exactly which changes still force a mandatory iPhone gate (any canary concern; M1 always; >80% of any average budget or within 80% of the 50ms jank ceiling; any change to the spotting *read*; any feel/visual/audio hot-path change even when green; the five-strangers playtest) versus what the workflow may self-certify (gated on touched surface, not activity label).
+- §5 — the full ultracode candidate → approved flow and tag-authority table (one candidate per milestone; slice progress in `DEVLOG.md`, not tags).
+
+The "Mark approved" button still only copies a `git tag` command to your clipboard (L15, L26–28). The machine never auto-approves. Approved is, and remains, a human signature.

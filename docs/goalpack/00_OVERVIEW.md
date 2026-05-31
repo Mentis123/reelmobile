@@ -61,5 +61,6 @@ Single pond. Ambient. Tactile. Mysterious. The fish are not labelled. The water 
 14. `13_CHECKPOINTS.md` — git tag policy
 15. `14_DO_NOT_BUILD.md` — the no-list
 16. `15_TELEMETRY_AND_SESSION.md` — session schema
-17. `16_HUMAN_GATES.md` — when the agent stops
+17. `16_HUMAN_GATES.md` — when the workflow stops
 18. `17_RESEARCH_NOTES.md` — references and rationale
+19. `18_ULTRACODE_PARADIGM.md` — the ultracode self-verification amendment
