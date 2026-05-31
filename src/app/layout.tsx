@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
 import { PwaRegister } from '@/components/pwa/PwaRegister';
+import { PwaUpdatePrompt } from '@/components/pwa/PwaUpdatePrompt';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <body>
         {children}
         <PwaRegister />
+        <PwaUpdatePrompt />
       </body>
     </html>
   );

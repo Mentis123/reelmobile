@@ -86,8 +86,16 @@ async function main() {
   const assetHashes = await Promise.all(
     assetUrls.map(async (url) => `${url}@${await fileHash(join(publicDir, url.replace(/^\//, '')))}`)
   );
+
+  // Fold the build's commit SHA into the version so EVERY deploy — including
+  // pure code changes that only touch /_next/static and never alter a public
+  // asset — produces a byte-different sw.js. That's what makes the browser
+  // install a new worker and lets the in-app "Update available" prompt fire.
+  // Vercel sets VERCEL_GIT_COMMIT_SHA at build time; falls back to a manual
+  // SW_BUILD_TAG, and to '' in local dev so the SW stays stable across restarts.
+  const buildTag = process.env.VERCEL_GIT_COMMIT_SHA || process.env.SW_BUILD_TAG || '';
   const fullVersion = createHash('sha256')
-    .update(version + assetHashes.join('|'))
+    .update(version + assetHashes.join('|') + '|' + buildTag)
     .digest('hex')
     .slice(0, 12);
 
