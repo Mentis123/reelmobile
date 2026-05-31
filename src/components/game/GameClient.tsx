@@ -1373,7 +1373,7 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
       <fog attach="fog" args={['#3d6068', 10, 18]} />
       <ambientLight intensity={0.9} />
       <directionalLight position={[2.4, 5, 3]} intensity={1.35} />
-      <BackgroundCard />
+      <Backdrop />
       <PondWater runtime={runtime} normalMap={waterNormalTexture} />
       <WaterRipples ripples={ripples} />
       <Reeds />
@@ -1411,6 +1411,8 @@ function PondWater({ runtime, normalMap }: { runtime: React.MutableRefObject<Run
     uDeep: { value: new THREE.Color('#3d6068') },
     uShallow: { value: new THREE.Color('#6a958f') },
     uMoonlight: { value: new THREE.Color('#c8c4b2') },
+    uCanopy: { value: new THREE.Color('#3c5238') },
+    uCaustic: { value: 0.5 },
     uGlareReduction: { value: TUNING.input.focusGlareReduction }
   }), [normalMap]);
 
@@ -1444,6 +1446,8 @@ function PondWater({ runtime, normalMap }: { runtime: React.MutableRefObject<Run
           uniform vec3 uDeep;
           uniform vec3 uShallow;
           uniform vec3 uMoonlight;
+          uniform vec3 uCanopy;
+          uniform float uCaustic;
           uniform float uGlareReduction;
           varying vec2 vUv;
 
@@ -1454,13 +1458,32 @@ function PondWater({ runtime, normalMap }: { runtime: React.MutableRefObject<Run
             vec3 normalB = texture2D(uNormalMap, flowB).rgb * 2.0 - 1.0;
             vec3 normal = normalize(vec3(normalA.xy * 0.58 + normalB.xy * 0.28, 1.0));
             float depth = smoothstep(0.02, 0.92, vUv.y);
+            float shallowW = 1.0 - depth;
             float shore = smoothstep(0.0, 0.18, vUv.x) * smoothstep(1.0, 0.82, vUv.x) * smoothstep(0.0, 0.14, vUv.y) * smoothstep(1.0, 0.86, vUv.y);
+
+            // Base depth gradient (unchanged palette so fish keep their contrast).
+            vec3 water = mix(uShallow * 1.18, uDeep * 1.08, depth);
+
+            // Canopy colour-bounce: the far bank's foliage tints the far water.
+            float canopyReflect = smoothstep(0.55, 1.0, vUv.y);
+            water = mix(water, uCanopy, canopyReflect * 0.34);
+
+            // Faked translucency: faint dark veining hints at depth beneath,
+            // kept subtle in the fishable mid-band so silhouettes still read.
+            float vein = texture2D(uNormalMap, vUv * 1.6 + vec2(uTime * 0.01, -uTime * 0.013)).b;
+            water *= mix(1.0, 0.9 + 0.1 * vein, depth * 0.7);
+
+            // Moonlit caustics: shifting light filaments, brightest in shallows.
+            float c1 = texture2D(uNormalMap, vUv * 3.2 + vec2(uTime * 0.03, uTime * 0.018)).g;
+            float c2 = texture2D(uNormalMap, vUv * 2.1 - vec2(uTime * 0.022, uTime * 0.015)).r;
+            float caustic = pow(clamp(c1 * c2 * 2.4, 0.0, 1.0), 2.2) * uCaustic * (0.35 + 0.65 * shallowW);
+
             float fresnel = pow(1.0 - max(normal.z, 0.0), 2.0);
             float focusGlare = 0.24 * (1.0 - uGlareReduction);
-            float glint = pow(max(normal.x * 0.65 + normal.y * 0.35, 0.0), 2.0) * mix(0.36, focusGlare, uFocus);
+            float glint = pow(max(normal.x * 0.65 + normal.y * 0.35, 0.0), 2.0) * mix(0.34, focusGlare, uFocus);
             float wash = 0.04 + 0.035 * sin((vUv.x + vUv.y) * 8.0 + uTime * 0.24);
-            vec3 water = mix(uShallow * 1.18, uDeep * 1.08, depth);
-            water = mix(water, uMoonlight, fresnel * mix(0.24, 0.1, uFocus) + glint + wash);
+
+            water = mix(water, uMoonlight, fresnel * mix(0.24, 0.1, uFocus) + glint + wash + caustic);
             water = mix(water * 0.9, water, shore);
             gl_FragColor = vec4(water, 1.0);
           }
@@ -1658,43 +1681,181 @@ function Reeds() {
   );
 }
 
-function BackgroundCard() {
-  const texture = useMemo(() => {
-    if (typeof document === 'undefined') {
-      return new THREE.Texture();
-    }
+// Soft organic foliage mass: a scatter of overlapping leaf-clump ellipses.
+// Used to paint canopy walls and overhanging branches without flat rectangles.
+function paintFoliageCluster(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  blobs: number,
+  rng: () => number
+): void {
+  for (let i = 0; i < blobs; i += 1) {
+    const angle = rng() * Math.PI * 2;
+    const reach = rng();
+    const x = cx + Math.cos(angle) * rx * reach;
+    const y = cy + Math.sin(angle) * ry * reach * 0.78;
+    const r = (0.16 + 0.52 * rng()) * Math.min(rx, ry);
+    ctx.beginPath();
+    ctx.ellipse(x, y, r, r * 0.82, rng() * Math.PI, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
 
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 256;
-    const ctx = canvas.getContext('2d');
+// Distant matte backdrop: a moonlit treeline + sky painted with atmospheric
+// haze so depth reads from the art, not world-space (the plate sits ~5u from
+// camera, inside the fog near-plane, filling the upper frame).
+function createCanopyTexture(kind: 'far' | 'near'): THREE.Texture {
+  if (typeof document === 'undefined') {
+    return new THREE.Texture();
+  }
 
-    if (ctx) {
-      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      gradient.addColorStop(0, '#3a5a60');
-      gradient.addColorStop(1, '#4a6b66');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = 'rgba(74, 93, 58, 0.78)';
-      for (let index = 0; index < 54; index += 1) {
-        const x = (index * 37) % canvas.width;
-        const h = 42 + ((index * 19) % 80);
-        ctx.fillRect(x, canvas.height - h, 4 + (index % 4), h);
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = kind === 'far' ? 512 : 384;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+
+  if (ctx) {
+    const rng = seededRandom(kind === 'far' ? 'm4-canopy-far' : 'm4-canopy-near');
+
+    if (kind === 'far') {
+      // Dusk sky: deep teal aloft warming to a pale moonlit horizon haze.
+      const sky = ctx.createLinearGradient(0, 0, 0, h);
+      sky.addColorStop(0, '#21333a');
+      sky.addColorStop(0.45, 'rgba(51, 80, 83, 0.85)');
+      sky.addColorStop(0.62, '#42605c');
+      sky.addColorStop(1, '#4a6b66');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h);
+
+      // Low moon with a soft halo, upper-left.
+      const moonX = w * 0.24;
+      const moonY = h * 0.2;
+      const halo = ctx.createRadialGradient(moonX, moonY, 4, moonX, moonY, 150);
+      halo.addColorStop(0, 'rgba(220, 216, 196, 0.85)');
+      halo.addColorStop(0.18, 'rgba(200, 196, 178, 0.32)');
+      halo.addColorStop(1, 'rgba(200, 196, 178, 0)');
+      ctx.fillStyle = halo;
+      ctx.fillRect(0, 0, w, h * 0.6);
+      ctx.fillStyle = 'rgba(232, 228, 208, 0.95)';
+      ctx.beginPath();
+      ctx.arc(moonX, moonY, 26, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Three canopy depth bands, far = hazier/higher, near = darker/lower.
+      const bands: Array<{ y: number; fill: string; alpha: number; spread: number; size: number }> = [
+        { y: h * 0.34, fill: '#4c6155', alpha: 0.5, spread: 130, size: 64 },
+        { y: h * 0.44, fill: '#36492f', alpha: 0.82, spread: 150, size: 86 },
+        { y: h * 0.52, fill: '#26361f', alpha: 0.96, spread: 168, size: 104 }
+      ];
+      bands.forEach((band) => {
+        ctx.globalAlpha = band.alpha;
+        ctx.fillStyle = band.fill;
+        for (let x = -40; x < w + 40; x += band.spread * 0.5) {
+          paintFoliageCluster(ctx, x + rng() * 60, band.y + rng() * 30, band.spread, band.size, 16, rng);
+        }
+      });
+
+      // Mossy sunlit-relief flecks on the lower bank (muted for dusk).
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = '#5a7048';
+      for (let i = 0; i < 90; i += 1) {
+        const x = rng() * w;
+        const y = h * 0.5 + rng() * h * 0.16;
+        ctx.beginPath();
+        ctx.ellipse(x, y, 6 + rng() * 14, 4 + rng() * 8, 0, 0, Math.PI * 2);
+        ctx.fill();
       }
-      ctx.fillStyle = 'rgba(200, 196, 178, 0.1)';
-      ctx.fillRect(0, 34, canvas.width, 3);
-    }
 
-    const map = new THREE.CanvasTexture(canvas);
-    map.colorSpace = THREE.SRGBColorSpace;
-    return map;
-  }, []);
+      // Stone-lantern silhouette across the pond (echoes the reference statue).
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = '#222a28';
+      const lx = w * 0.7;
+      const ly = h * 0.5;
+      ctx.fillRect(lx - 4, ly, 8, 34); // post
+      ctx.fillRect(lx - 16, ly - 16, 32, 16); // light box
+      ctx.beginPath();
+      ctx.moveTo(lx - 22, ly - 16);
+      ctx.lineTo(lx + 22, ly - 16);
+      ctx.lineTo(lx, ly - 34);
+      ctx.closePath();
+      ctx.fill(); // cap
+
+      // Faint firefly / moon-glint specks for nocturnal life.
+      ctx.fillStyle = 'rgba(232, 228, 208, 0.7)';
+      for (let i = 0; i < 26; i += 1) {
+        ctx.globalAlpha = 0.2 + rng() * 0.5;
+        ctx.beginPath();
+        ctx.arc(rng() * w, h * 0.3 + rng() * h * 0.3, 0.8 + rng() * 1.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Waterline mist fading the plate into the live scene below.
+      ctx.globalAlpha = 1;
+      const mist = ctx.createLinearGradient(0, h * 0.74, 0, h);
+      mist.addColorStop(0, 'rgba(74, 107, 102, 0)');
+      mist.addColorStop(0.6, 'rgba(74, 107, 102, 0.55)');
+      mist.addColorStop(1, 'rgba(74, 107, 102, 0)');
+      ctx.fillStyle = mist;
+      ctx.fillRect(0, h * 0.74, w, h * 0.26);
+    } else {
+      // Overhanging foliage that frames the top of the view. Transparent base.
+      ctx.clearRect(0, 0, w, h);
+      ctx.globalAlpha = 0.97;
+      ctx.fillStyle = '#1b271a';
+      for (let x = -60; x < w + 60; x += 150) {
+        const drop = h * (0.12 + rng() * 0.2);
+        paintFoliageCluster(ctx, x + rng() * 80, drop, 150, 120, 18, rng);
+      }
+      // Denser darker mass tucked into the top corners.
+      [0, w].forEach((corner) => {
+        ctx.fillStyle = '#141d13';
+        paintFoliageCluster(ctx, corner, h * 0.16, 240, 180, 26, rng);
+      });
+      // Moonlit rim picking out the upper leaf edges.
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = '#3e5232';
+      for (let x = -40; x < w + 40; x += 130) {
+        paintFoliageCluster(ctx, x + rng() * 60, h * (0.06 + rng() * 0.1), 110, 70, 12, rng);
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  const map = new THREE.CanvasTexture(canvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  return map;
+}
+
+function Backdrop() {
+  const farTexture = useMemo(() => createCanopyTexture('far'), []);
+  const nearTexture = useMemo(() => createCanopyTexture('near'), []);
 
   return (
-    <mesh position={[0, 1.18, TUNING.world.pondHeightM * 0.5 + 0.15]} rotation={[-0.22, 0, 0]}>
-      <planeGeometry args={[TUNING.world.pondWidthM * 1.28, 2.4]} />
-      <meshBasicMaterial map={texture} color="#c8c4b2" />
-    </mesh>
+    <group>
+      {/* Distant moonlit treeline, moon and stone lantern (proven matte transform). */}
+      <mesh
+        position={[0, 1.18, TUNING.world.pondHeightM * 0.5 + 0.15]}
+        rotation={[-0.22, 0, 0]}
+        renderOrder={-2}
+      >
+        <planeGeometry args={[TUNING.world.pondWidthM * 1.34, 2.6]} />
+        <meshBasicMaterial map={farTexture} color="#cfcbb6" transparent depthWrite={false} />
+      </mesh>
+      {/* Nearer overhanging canopy framing the upper frame for parallax depth. */}
+      <mesh
+        position={[0, 2.05, TUNING.world.pondHeightM * 0.5 + 0.95]}
+        rotation={[-0.4, 0, 0]}
+        renderOrder={-1}
+      >
+        <planeGeometry args={[TUNING.world.pondWidthM * 1.78, 2.0]} />
+        <meshBasicMaterial map={nearTexture} transparent depthWrite={false} />
+      </mesh>
+    </group>
   );
 }
 
