@@ -1704,126 +1704,111 @@ function paintFoliageCluster(
   }
 }
 
-// Distant matte backdrop: a moonlit treeline + sky painted with atmospheric
-// haze so depth reads from the art, not world-space (the plate sits ~5u from
-// camera, inside the fog near-plane, filling the upper frame).
-function createCanopyTexture(kind: 'far' | 'near'): THREE.Texture {
+// Moonlit treeline backdrop standing up from the far shore (z=-6.5). The
+// camera pitches down into the pond, so only the top ~130px of the frame
+// (≈ bottom 60% of this canvas) is ever on screen — all the readable content
+// (waterline, low moon, tree mass) is packed into that lower band, with the
+// canopy crowns running off the top of the frame. Fog is disabled on the
+// material so the haze is painted here rather than washing the trees to teal.
+const TREELINE_VISIBLE_TOP = 0.4; // canvas fraction below which content shows
+
+function createCanopyTexture(): THREE.Texture {
   if (typeof document === 'undefined') {
     return new THREE.Texture();
   }
 
   const canvas = document.createElement('canvas');
   canvas.width = 1024;
-  canvas.height = kind === 'far' ? 512 : 384;
+  canvas.height = 512;
   const ctx = canvas.getContext('2d');
   const w = canvas.width;
   const h = canvas.height;
 
   if (ctx) {
-    const rng = seededRandom(kind === 'far' ? 'm4-canopy-far' : 'm4-canopy-near');
+    const rng = seededRandom('m4-treeline');
 
-    if (kind === 'far') {
-      // Dusk sky: deep teal aloft warming to a pale moonlit horizon haze.
-      const sky = ctx.createLinearGradient(0, 0, 0, h);
-      sky.addColorStop(0, '#21333a');
-      sky.addColorStop(0.45, 'rgba(51, 80, 83, 0.85)');
-      sky.addColorStop(0.62, '#42605c');
-      sky.addColorStop(1, '#4a6b66');
-      ctx.fillStyle = sky;
-      ctx.fillRect(0, 0, w, h);
+    // Dusk sky behind the trees, warming toward the fog teal at the waterline.
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#20323a');
+    sky.addColorStop(0.5, '#2c454b');
+    sky.addColorStop(0.82, '#3a585a');
+    sky.addColorStop(1, '#3d6068');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
 
-      // Low moon with a soft halo, upper-left.
-      const moonX = w * 0.24;
-      const moonY = h * 0.2;
-      const halo = ctx.createRadialGradient(moonX, moonY, 4, moonX, moonY, 150);
-      halo.addColorStop(0, 'rgba(220, 216, 196, 0.85)');
-      halo.addColorStop(0.18, 'rgba(200, 196, 178, 0.32)');
-      halo.addColorStop(1, 'rgba(200, 196, 178, 0)');
-      ctx.fillStyle = halo;
-      ctx.fillRect(0, 0, w, h * 0.6);
-      ctx.fillStyle = 'rgba(232, 228, 208, 0.95)';
-      ctx.beginPath();
-      ctx.arc(moonX, moonY, 26, 0, Math.PI * 2);
-      ctx.fill();
+    // Low moon with a soft halo, sitting just above the tree mass (on screen).
+    const moonX = w * 0.32;
+    const moonY = h * 0.62;
+    const halo = ctx.createRadialGradient(moonX, moonY, 4, moonX, moonY, 170);
+    halo.addColorStop(0, 'rgba(224, 220, 200, 0.9)');
+    halo.addColorStop(0.16, 'rgba(200, 196, 178, 0.34)');
+    halo.addColorStop(1, 'rgba(200, 196, 178, 0)');
+    ctx.fillStyle = halo;
+    ctx.fillRect(0, h * 0.3, w, h * 0.55);
+    ctx.fillStyle = 'rgba(234, 230, 210, 0.96)';
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, 30, 0, Math.PI * 2);
+    ctx.fill();
 
-      // Three canopy depth bands, far = hazier/higher, near = darker/lower.
-      const bands: Array<{ y: number; fill: string; alpha: number; spread: number; size: number }> = [
-        { y: h * 0.34, fill: '#4c6155', alpha: 0.5, spread: 130, size: 64 },
-        { y: h * 0.44, fill: '#36492f', alpha: 0.82, spread: 150, size: 86 },
-        { y: h * 0.52, fill: '#26361f', alpha: 0.96, spread: 168, size: 104 }
-      ];
-      bands.forEach((band) => {
-        ctx.globalAlpha = band.alpha;
-        ctx.fillStyle = band.fill;
-        for (let x = -40; x < w + 40; x += band.spread * 0.5) {
-          paintFoliageCluster(ctx, x + rng() * 60, band.y + rng() * 30, band.spread, band.size, 16, rng);
-        }
-      });
-
-      // Mossy sunlit-relief flecks on the lower bank (muted for dusk).
-      ctx.globalAlpha = 0.55;
-      ctx.fillStyle = '#5a7048';
-      for (let i = 0; i < 90; i += 1) {
-        const x = rng() * w;
-        const y = h * 0.5 + rng() * h * 0.16;
-        ctx.beginPath();
-        ctx.ellipse(x, y, 6 + rng() * 14, 4 + rng() * 8, 0, 0, Math.PI * 2);
-        ctx.fill();
+    // Treeline depth bands: back rows hazier/higher, front rows darker/lower.
+    // All sit within the visible lower band; crowns spill above off-screen.
+    const bands: Array<{ y: number; fill: string; alpha: number; size: number }> = [
+      { y: h * 0.5, fill: '#3c5147', alpha: 0.55, size: 96 },
+      { y: h * 0.62, fill: '#2c3e2a', alpha: 0.84, size: 120 },
+      { y: h * 0.76, fill: '#1d2c19', alpha: 0.97, size: 140 }
+    ];
+    bands.forEach((band) => {
+      ctx.globalAlpha = band.alpha;
+      ctx.fillStyle = band.fill;
+      for (let x = -60; x < w + 60; x += 90) {
+        paintFoliageCluster(ctx, x + rng() * 70, band.y + rng() * 36, 150, band.size, 18, rng);
       }
+    });
 
-      // Stone-lantern silhouette across the pond (echoes the reference statue).
-      ctx.globalAlpha = 0.9;
-      ctx.fillStyle = '#222a28';
-      const lx = w * 0.7;
-      const ly = h * 0.5;
-      ctx.fillRect(lx - 4, ly, 8, 34); // post
-      ctx.fillRect(lx - 16, ly - 16, 32, 16); // light box
-      ctx.beginPath();
-      ctx.moveTo(lx - 22, ly - 16);
-      ctx.lineTo(lx + 22, ly - 16);
-      ctx.lineTo(lx, ly - 34);
-      ctx.closePath();
-      ctx.fill(); // cap
-
-      // Faint firefly / moon-glint specks for nocturnal life.
-      ctx.fillStyle = 'rgba(232, 228, 208, 0.7)';
-      for (let i = 0; i < 26; i += 1) {
-        ctx.globalAlpha = 0.2 + rng() * 0.5;
-        ctx.beginPath();
-        ctx.arc(rng() * w, h * 0.3 + rng() * h * 0.3, 0.8 + rng() * 1.4, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Waterline mist fading the plate into the live scene below.
-      ctx.globalAlpha = 1;
-      const mist = ctx.createLinearGradient(0, h * 0.74, 0, h);
-      mist.addColorStop(0, 'rgba(74, 107, 102, 0)');
-      mist.addColorStop(0.6, 'rgba(74, 107, 102, 0.55)');
-      mist.addColorStop(1, 'rgba(74, 107, 102, 0)');
-      ctx.fillStyle = mist;
-      ctx.fillRect(0, h * 0.74, w, h * 0.26);
-    } else {
-      // Overhanging foliage that frames the top of the view. Transparent base.
-      ctx.clearRect(0, 0, w, h);
-      ctx.globalAlpha = 0.97;
-      ctx.fillStyle = '#1b271a';
-      for (let x = -60; x < w + 60; x += 150) {
-        const drop = h * (0.12 + rng() * 0.2);
-        paintFoliageCluster(ctx, x + rng() * 80, drop, 150, 120, 18, rng);
-      }
-      // Denser darker mass tucked into the top corners.
-      [0, w].forEach((corner) => {
-        ctx.fillStyle = '#141d13';
-        paintFoliageCluster(ctx, corner, h * 0.16, 240, 180, 26, rng);
-      });
-      // Moonlit rim picking out the upper leaf edges.
-      ctx.globalAlpha = 0.5;
-      ctx.fillStyle = '#3e5232';
-      for (let x = -40; x < w + 40; x += 130) {
-        paintFoliageCluster(ctx, x + rng() * 60, h * (0.06 + rng() * 0.1), 110, 70, 12, rng);
-      }
-      ctx.globalAlpha = 1;
+    // Moonlit rim catching the tops of the front trees.
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#4d6440';
+    for (let x = -40; x < w + 40; x += 120) {
+      paintFoliageCluster(ctx, x + rng() * 60, h * (0.54 + rng() * 0.06), 90, 60, 10, rng);
     }
+
+    // Mossy far bank along the waterline.
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#243524';
+    for (let x = -40; x < w + 40; x += 70) {
+      paintFoliageCluster(ctx, x + rng() * 50, h * (0.9 + rng() * 0.05), 70, 30, 10, rng);
+    }
+
+    // Stone-lantern silhouette on the far bank (echoes the reference statue).
+    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = '#1b211f';
+    const lx = w * 0.72;
+    const ly = h * 0.88;
+    ctx.fillRect(lx - 4, ly, 8, 26);
+    ctx.fillRect(lx - 13, ly - 13, 26, 13);
+    ctx.beginPath();
+    ctx.moveTo(lx - 18, ly - 13);
+    ctx.lineTo(lx + 18, ly - 13);
+    ctx.lineTo(lx, ly - 28);
+    ctx.closePath();
+    ctx.fill();
+
+    // Faint fireflies drifting in front of the trees.
+    ctx.fillStyle = 'rgba(234, 230, 210, 0.8)';
+    for (let i = 0; i < 30; i += 1) {
+      ctx.globalAlpha = 0.2 + rng() * 0.5;
+      ctx.beginPath();
+      ctx.arc(rng() * w, h * (TREELINE_VISIBLE_TOP + rng() * 0.5), 0.8 + rng() * 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Waterline mist blending the base into the fogged far water edge.
+    ctx.globalAlpha = 1;
+    const mist = ctx.createLinearGradient(0, h * 0.9, 0, h);
+    mist.addColorStop(0, 'rgba(61, 96, 104, 0)');
+    mist.addColorStop(1, 'rgba(61, 96, 104, 0.85)');
+    ctx.fillStyle = mist;
+    ctx.fillRect(0, h * 0.9, w, h * 0.1);
   }
 
   const map = new THREE.CanvasTexture(canvas);
@@ -1832,30 +1817,16 @@ function createCanopyTexture(kind: 'far' | 'near'): THREE.Texture {
 }
 
 function Backdrop() {
-  const farTexture = useMemo(() => createCanopyTexture('far'), []);
-  const nearTexture = useMemo(() => createCanopyTexture('near'), []);
+  const treeline = useMemo(() => createCanopyTexture(), []);
 
+  // Vertical wall standing up from just beyond the far water edge. Verified to
+  // fill the top strip across portrait/tall/wide aspect ratios; bottom edge
+  // tucks under the water horizon so there is no seam.
   return (
-    <group>
-      {/* Distant moonlit treeline, moon and stone lantern (proven matte transform). */}
-      <mesh
-        position={[0, 1.18, TUNING.world.pondHeightM * 0.5 + 0.15]}
-        rotation={[-0.22, 0, 0]}
-        renderOrder={-2}
-      >
-        <planeGeometry args={[TUNING.world.pondWidthM * 1.34, 2.6]} />
-        <meshBasicMaterial map={farTexture} color="#cfcbb6" transparent depthWrite={false} />
-      </mesh>
-      {/* Nearer overhanging canopy framing the upper frame for parallax depth. */}
-      <mesh
-        position={[0, 2.05, TUNING.world.pondHeightM * 0.5 + 0.95]}
-        rotation={[-0.4, 0, 0]}
-        renderOrder={-1}
-      >
-        <planeGeometry args={[TUNING.world.pondWidthM * 1.78, 2.0]} />
-        <meshBasicMaterial map={nearTexture} transparent depthWrite={false} />
-      </mesh>
-    </group>
+    <mesh position={[0, 0.8, -(TUNING.world.pondHeightM * 0.5) - 0.5]} rotation={[0.12, 0, 0]} renderOrder={-1}>
+      <planeGeometry args={[18, 2.8]} />
+      <meshBasicMaterial map={treeline} transparent depthWrite={false} fog={false} />
+    </mesh>
   );
 }
 
