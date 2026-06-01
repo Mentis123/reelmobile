@@ -578,3 +578,12 @@ Append after every milestone. Format:
 - The eight canary judgments: distance feels real; far is murky; reach (far + close); accuracy reads as mechanic not bug; **the reveal** (lure a far fish into clarity); the rod (doubled / corner / points-middle / sways); dock-gone-and-coherent; loop preserved.
 - Starting values (how far, how loose, how dark, rod angle/size/lean) are a co-tuned first guess — for the gate to refine.
 - Only a human, on a real iPhone, may create `v0.4-far-water-approved`.
+
+**Slice — gate refinements (same candidate):**
+- **Accuracy was "too jittery."** Root cause: the aim preview *and* the rod were tracking the **scattered** landing point, whose per-gesture hash jumps every frame as you drag — so the predicted dot and the rod twitched. Fixed by tracking the **smooth intended** aim point instead; the scatter is realized only at release. Added a dashed **uncertainty ring** (`runtime.aimSpread` → `overlay.aimSpreadPx`, projected from one spread-radius in world to screen px) that grows with reach, so the looseness reads as a designed mechanic before you commit — this is the deferred telegraph, now built because the jitter is exactly what it solves.
+- **Rising moon** "like time is really passing": pulled the moon out of the baked canopy texture into a separate `<Moon/>` sprite (`createMoonTexture`) that climbs slowly from near the crowns into the sky over a few minutes (`TUNING.visual.moon*`: start 0.45 → max 1.35 at 0.004 m/s, renderOrder in front of the treeline). Stars stay baked/fixed.
+- **5 fish, always:** `fishMaxVisible` 3 → 5 and the decor pool is filled every spawn (`extraCount = fishMaxVisible - 1`), so the bigger water reads populated and spread out, not sparse.
+- **Build discipline:** the first push of this slice ERRORed on Vercel — `useRef(TUNING.visual.moonStartY)` inferred the `as const` literal type `0.45`, rejecting a `number` reassignment. Caught by the §3.1 executor (Vercel build), fixed with `useRef<number>(...)`, re-verified green. The failed build never flipped the alias, so the live site was never broken.
+- Re-confirmed by headless render: uncertainty ring visible and reach-scaled, preview/rod smooth (no jitter), ~5 fish spread across the water, moon present low near the treeline.
+
+**Constitution:** `v0.0-ultracode-ratified` was **e-signed by the owner** (Adam Rappaport / Mentis123, by explicit chat consent, 2026-06-01) on the `18_ULTRACODE_PARADIGM` commit — the agent created the tag solely under that recorded consent.
