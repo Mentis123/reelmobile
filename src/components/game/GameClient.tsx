@@ -1903,7 +1903,7 @@ function createMoonTexture(): THREE.Texture {
 function Moon() {
   const texture = useMemo(() => createMoonTexture(), []);
   const meshRef = useRef<THREE.Mesh>(null);
-  const yRef = useRef(TUNING.visual.moonStartY);
+  const yRef = useRef<number>(TUNING.visual.moonStartY);
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
