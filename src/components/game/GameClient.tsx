@@ -1753,18 +1753,30 @@ function createCanopyTexture(): THREE.Texture {
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, w, h);
 
-    // Low moon with a soft halo, sitting just above the tree mass (on screen).
+    // A faint star scatter high in the dusk sky, behind the moon and trees, to
+    // give the far shore some depth instead of a flat green band.
+    for (let i = 0; i < 40; i += 1) {
+      ctx.globalAlpha = 0.12 + rng() * 0.4;
+      ctx.fillStyle = 'rgba(220, 224, 224, 1)';
+      ctx.beginPath();
+      ctx.arc(rng() * w, h * (0.06 + rng() * 0.34), 0.5 + rng() * 1.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Moon sitting in the sky band above the tree mass — raised from h*0.62 into
+    // the slice of texture the camera actually frames, so it reads on screen.
     const moonX = w * 0.32;
-    const moonY = h * 0.62;
-    const halo = ctx.createRadialGradient(moonX, moonY, 4, moonX, moonY, 170);
-    halo.addColorStop(0, 'rgba(224, 220, 200, 0.9)');
-    halo.addColorStop(0.16, 'rgba(200, 196, 178, 0.34)');
-    halo.addColorStop(1, 'rgba(200, 196, 178, 0)');
+    const moonY = h * 0.42;
+    const halo = ctx.createRadialGradient(moonX, moonY, 4, moonX, moonY, 200);
+    halo.addColorStop(0, 'rgba(226, 222, 202, 0.92)');
+    halo.addColorStop(0.16, 'rgba(202, 198, 180, 0.36)');
+    halo.addColorStop(1, 'rgba(202, 198, 180, 0)');
     ctx.fillStyle = halo;
-    ctx.fillRect(0, h * 0.3, w, h * 0.55);
-    ctx.fillStyle = 'rgba(234, 230, 210, 0.96)';
+    ctx.fillRect(0, h * 0.1, w, h * 0.6);
+    ctx.fillStyle = 'rgba(236, 232, 212, 0.97)';
     ctx.beginPath();
-    ctx.arc(moonX, moonY, 30, 0, Math.PI * 2);
+    ctx.arc(moonX, moonY, 32, 0, Math.PI * 2);
     ctx.fill();
 
     // Treeline depth bands: back rows hazier/higher, front rows darker/lower.

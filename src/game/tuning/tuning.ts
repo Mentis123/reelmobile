@@ -88,7 +88,7 @@ export const TUNING = {
     // Treeline backdrop placement — lifted for /dev tuning. A shorter plane
     // packs more of the full far shore (sky, crowns, moon, waterline) into the
     // camera-fixed horizon strip instead of showing only a band of mid-foliage.
-    backdropY: 0.8,
+    backdropY: 0.4,
     backdropHeight: 2.8,
     backdropTilt: 0.12,
     treelineVisibleTop: 0.4
