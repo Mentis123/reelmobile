@@ -1824,15 +1824,30 @@ function createCanopyTexture(): THREE.Texture {
   return map;
 }
 
+// TEMP backdrop-tuning overrides: ?by= (y), ?bh= (plane height), ?bt= (tilt).
+// Inert without query params (falls back to TUNING.visual). Used to sweep the
+// far-shore framing against the real camera projection from a single deploy;
+// removed once the winning values are baked into TUNING.visual.
+function backdropOverride(key: string, fallback: number): number {
+  if (typeof window === 'undefined') return fallback;
+  const raw = new URLSearchParams(window.location.search).get(key);
+  if (raw == null) return fallback;
+  const n = parseFloat(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 function Backdrop() {
   const treeline = useMemo(() => createCanopyTexture(), []);
 
   // Vertical wall standing up from just beyond the far water edge. Verified to
   // fill the top strip across portrait/tall/wide aspect ratios; bottom edge
   // tucks under the water horizon so there is no seam.
+  const by = backdropOverride('by', TUNING.visual.backdropY);
+  const bh = backdropOverride('bh', TUNING.visual.backdropHeight);
+  const bt = backdropOverride('bt', TUNING.visual.backdropTilt);
   return (
-    <mesh position={[0, TUNING.visual.backdropY, -(TUNING.world.pondHeightM * 0.5) - 0.5]} rotation={[TUNING.visual.backdropTilt, 0, 0]} renderOrder={-1}>
-      <planeGeometry args={[18, 2.8]} />
+    <mesh position={[0, by, -(TUNING.world.pondHeightM * 0.5) - 0.5]} rotation={[bt, 0, 0]} renderOrder={-1}>
+      <planeGeometry args={[18, bh]} />
       <meshBasicMaterial map={treeline} transparent depthWrite={false} fog={false} />
     </mesh>
   );

@@ -85,8 +85,11 @@ export const TUNING = {
     // light filaments stop competing with fish cues. Strength was a bare 0.5.
     causticStrength: 0.32,
     causticFocusMultiplier: 0.35,
-    // Treeline backdrop placement — lifted for /dev tuning, values unchanged.
+    // Treeline backdrop placement — lifted for /dev tuning. A shorter plane
+    // packs more of the full far shore (sky, crowns, moon, waterline) into the
+    // camera-fixed horizon strip instead of showing only a band of mid-foliage.
     backdropY: 0.8,
+    backdropHeight: 2.8,
     backdropTilt: 0.12,
     treelineVisibleTop: 0.4
   },
