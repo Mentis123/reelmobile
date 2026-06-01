@@ -552,3 +552,29 @@ Append after every milestone. Format:
 - Repacked the canopy texture to fill the reframed strip: moon raised `h*0.62 → h*0.42` into the framed slice + brighter halo, and a faint star scatter for depth.
 - Temporary `?by/?bh/?bt` instrumentation removed; final values baked into `TUNING.visual`. Re-confirmed by headless render at defaults.
 - Still the same candidate before the gate — re-check the **placement** item (treeline fills the top strip across portrait/tall/wide) and that the moon/sky now read as a far shore.
+
+---
+
+## v0.4-far-water-candidate (2026-06-01)
+*A new chapter, not a polish pass. Canon was rewritten first (`19_THE_FAR_WATER.md` + new `00_OVERVIEW` paragraph): **distance is the spine of the game** — you cast blind into the dark far water and reel the unknown back into clarity. Builds on (and includes) the unreviewed pond-polish + backdrop-reframe work, so gating this also gates those visuals.*
+
+**Shipped (all 10 of the requested changes):**
+- **Dock removed entirely** — mesh, texture load/config, asset, all 7 constants, story line. You're on the bank now, rod in hand. The paragraph's "I crept along the dock" is retired in canon.
+- **Cast reaches the far shore** (`castMaxRangeM` 8 → 9.5), **wider lane** (`castVisibleHalfWidthM` 1.9 → 3.2), and **in close to the bank** (`castMinForwardM` 0.6 → 0.25).
+- **Accuracy falloff:** the lure scatters from the aim point by a radius that grows with reach (`castSpreadNearM` 0.06 → `castSpreadFarM` 1.2, curve 1.7). **Deterministic per gesture** (hashed from the release point) so the same drag always lands the same — testable, not a slot machine. `computeCast` now also returns `aimTarget` + `spreadRadius`. The aim preview ends at the true (scattered) landing, so it's WYSIWYG-legible.
+- **Visibility falloff:** flipped the fish depth fade — which *brightened* far fish, backwards for the loop — to a distance model: clear near, murk far (`fishFarVisibility` 0.3, near 1.15, curve 1.6). Retired the deep/shallow multipliers.
+- **Fish roam the whole expanse** (`fishableMinZ` -3.05 → -5.4, `fishableMaxZ` 1.2 → 1.8, wander radius 4.2 → 5.5).
+- **Rod-in-hand:** butt pinned to the bottom-right corner (`rodScreenButtXRatio` 0.9 → 0.95, bottom 0.03 → 0.012), **doubled** (stroke 4 → 8, reel ×2 via one `rodReelScale`), pointing up toward the middle, and **swaying to track the aim** (`rodAimLeanFraction` 0.2). Visual only — cast origin stays `TUNING.world.rodTip`, and the line isn't drawn while aiming, so nothing disconnects.
+
+**Verification (machine + sighted):**
+- Vercel build green (typecheck/lint/build); no dangling dock/`fishDepthVisibility`/deep-shallow references.
+- **Sighted via the headless harness** (chromium at 430×932 against the live deploy, with a scripted drag-aim-release): dock-free open water confirmed; far fish dimmed into murk; the rod renders doubled, corner-anchored, leaning toward the aim with the gold preview arc tracing the cast; cast fires and the line connects.
+
+**Cut / deferred:**
+- A widening aim-preview *ring* to telegraph spread before release — deferred. The preview already ends at the true scattered landing (WYSIWYG), so the falloff reads honestly; the ring is a polish to add if the gate wants a stronger tell.
+- Fish count unchanged (still 1–3 visible) — the bigger area may read sparse; left for the gate to call.
+
+**Next — the human iPhone gate (`far-water` checklist on `/dev`):**
+- The eight canary judgments: distance feels real; far is murky; reach (far + close); accuracy reads as mechanic not bug; **the reveal** (lure a far fish into clarity); the rod (doubled / corner / points-middle / sways); dock-gone-and-coherent; loop preserved.
+- Starting values (how far, how loose, how dark, rod angle/size/lean) are a co-tuned first guess — for the gate to refine.
+- Only a human, on a real iPhone, may create `v0.4-far-water-approved`.

@@ -4,7 +4,7 @@ export type DevChecklistItem = {
 };
 
 export type DevChecklist = {
-  milestone: 'm0' | 'm1' | 'm1.5' | 'm2' | 'm3' | 'm3.1' | 'm3.2';
+  milestone: 'm0' | 'm1' | 'm1.5' | 'm2' | 'm3' | 'm3.1' | 'm3.2' | 'far-water';
   title: string;
   items: DevChecklistItem[];
 };
@@ -98,10 +98,28 @@ export const checklists: Record<DevChecklist['milestone'], DevChecklist> = {
       { id: 'caustics-focus', text: 'Do the caustics visibly calm when I hold Focus, and stop competing with cues in the foreground?' },
       { id: 'loop-preserved', text: 'Are casting, twitch, rod control, bite, hook, fight, failures, result, debug HUD, /dev, and /tune all preserved?' }
     ]
+  },
+  'far-water': {
+    milestone: 'far-water',
+    title: 'The far water real-iPhone gate (19_THE_FAR_WATER)',
+    items: [
+      { id: 'distance', text: 'Does the water feel like it stretches away to a far shore — is distance a real dimension, not a flat slab?' },
+      { id: 'murk', text: 'Far out, is it murky — do I see movement, not a clear fish — while the near water reads clearly?' },
+      { id: 'reach', text: 'Can I cast all the way out near the far shore, AND drop one in close by the bank?' },
+      { id: 'accuracy', text: 'Does a long cast land near-but-not-on where I aimed, while a short cast lands true? Does that read as a mechanic, not a bug?' },
+      { id: 'reveal', text: 'Can I lure a far fish in and watch it resolve out of the dark into water I can read — the reel-the-mystery-in moment?' },
+      { id: 'rod', text: 'Is the rod doubled, anchored in the bottom-right corner, pointing toward the middle, and swaying to track where I aim?' },
+      { id: 'no-dock', text: 'Is the dock gone and the scene still coherent (no floating gap where it was)?' },
+      { id: 'loop-preserved', text: 'Do twitch, bite, hook, fight, failures, result, the deeper water + reframed backdrop, /dev and /tune all still hold?' }
+    ]
   }
 };
 
 export function getChecklist(milestone: string): DevChecklist {
+  if (milestone === 'far-water') {
+    return checklists['far-water'];
+  }
+
   if (milestone === 'm3.2') {
     return checklists['m3.2'];
   }
