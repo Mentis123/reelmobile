@@ -56,7 +56,7 @@ export const TUNING = {
     fishFadeMaxMultiplier: 1.15,
     fishFadeMinPeriodMs: 4200,
     fishFadeMaxPeriodMs: 7800,
-    fishMaxVisible: 3,
+    fishMaxVisible: 5,
     falseCueOpacity: 0.24,
     rippleHeightM: 0.012,
     rippleSegments: 48,
@@ -88,6 +88,16 @@ export const TUNING = {
     // light filaments stop competing with fish cues. Strength was a bare 0.5.
     causticStrength: 0.32,
     causticFocusMultiplier: 0.35,
+    // The moon rises slowly through the session "like time is really passing"
+    // (19_THE_FAR_WATER). A separate sprite in front of the treeline, not baked
+    // into the canopy, so it can animate. Starts low near the crowns at the same
+    // spot the old baked moon sat, and climbs into the sky over a few minutes.
+    moonX: -3,
+    moonZ: -6.4,
+    moonRadiusM: 0.62,
+    moonStartY: 0.45,
+    moonRiseMaxY: 1.35,
+    moonRiseMPerSec: 0.004,
     // Treeline backdrop placement — lifted for /dev tuning. A shorter plane
     // packs more of the full far shore (sky, crowns, moon, waterline) into the
     // camera-fixed horizon strip instead of showing only a band of mid-foliage.

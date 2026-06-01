@@ -75,6 +75,7 @@ type Runtime = {
   degradationLevel: number;
   pixelRatio: number;
   aimTarget: Vec2 | null;
+  aimSpread: number;
 };
 
 type Ripple = {
@@ -116,6 +117,7 @@ type Overlay = {
   rodTip: ScreenPoint;
   lure: ScreenPoint;
   aimTarget: ScreenPoint | null;
+  aimSpreadPx?: number;
 };
 
 type SceneProps = {
@@ -442,7 +444,8 @@ export function GameClient() {
         currentPx: { x: event.clientX, z: event.clientY },
         power: cast.power
       };
-      runtime.current.aimTarget = cast.target;
+      runtime.current.aimTarget = cast.aimTarget;
+      runtime.current.aimSpread = cast.spreadRadius;
       setGameState(runtime.current.state);
       setAimPreview({ power: cast.power, target: cast.target });
     }
@@ -489,7 +492,8 @@ export function GameClient() {
         currentPx: { x: pointer.x, z: pointer.y },
         power: cast.power
       };
-      runtime.current.aimTarget = cast.target;
+      runtime.current.aimTarget = cast.aimTarget;
+      runtime.current.aimSpread = cast.spreadRadius;
       setGameState(runtime.current.state);
       setAimPreview({ power: cast.power, target: cast.target });
       return;
@@ -505,7 +509,8 @@ export function GameClient() {
       currentPx: { x: pointer.x, z: pointer.y },
       power: cast.power
     };
-    runtime.current.aimTarget = cast.target;
+    runtime.current.aimTarget = cast.aimTarget;
+    runtime.current.aimSpread = cast.spreadRadius;
     setGameState(runtime.current.state);
     setAimPreview({ power: cast.power, target: cast.target });
   };
@@ -785,6 +790,18 @@ export function GameClient() {
           />
           <RodReel rodButtScreen={rodButtScreen} rodTipScreen={overlay.rodTip} />
         </svg>
+      ) : null}
+
+      {aimPreview && overlay.aimTarget && (overlay.aimSpreadPx ?? 0) > 2 ? (
+        <span
+          className="aim-spread-ring"
+          aria-hidden="true"
+          style={{
+            transform: `translate(${overlay.aimTarget.x}px, ${overlay.aimTarget.y}px) translate(-50%, -50%)`,
+            width: `${(overlay.aimSpreadPx ?? 0) * 2}px`,
+            height: `${(overlay.aimSpreadPx ?? 0) * 2}px`
+          }}
+        />
       ) : null}
 
       {previewDots.map((dot) => (
@@ -1380,12 +1397,18 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
     const lureScreen = projectVecToScreen(projVec, camera, size);
 
     let aimTargetScreen: ScreenPoint | null = null;
+    let aimSpreadPx = 0;
     if (current.aimTarget) {
       projVec.set(current.aimTarget.x, TUNING.world.lureSurfaceY, current.aimTarget.z);
       aimTargetScreen = projectVecToScreen(projVec, camera, size);
+      // Project a point one spread-radius away so the ring shows the real
+      // uncertainty zone in screen px — grows with reach, telegraphs the gamble.
+      projVec.set(current.aimTarget.x + current.aimSpread, TUNING.world.lureSurfaceY, current.aimTarget.z);
+      const edge = projectVecToScreen(projVec, camera, size);
+      aimSpreadPx = Math.hypot(edge.x - aimTargetScreen.x, edge.y - aimTargetScreen.y);
     }
 
-    setOverlay({ linePoints, rodTip: rodTipScreen, lure: lureScreen, aimTarget: aimTargetScreen });
+    setOverlay({ linePoints, rodTip: rodTipScreen, lure: lureScreen, aimTarget: aimTargetScreen, aimSpreadPx });
     setRodOffset(current.rodOffset);
     setFishState(current.fish.state);
     setTension(current.tension);
@@ -1400,6 +1423,7 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
       <ambientLight intensity={0.9} />
       <directionalLight position={[2.4, 5, 3]} intensity={1.35} />
       <Backdrop />
+      <Moon />
       <PondWater runtime={runtime} normalMap={waterNormalTexture} />
       <WaterRipples ripples={ripples} />
       <Reeds />
@@ -1768,20 +1792,8 @@ function createCanopyTexture(): THREE.Texture {
     }
     ctx.globalAlpha = 1;
 
-    // Moon sitting in the sky band above the tree mass — raised from h*0.62 into
-    // the slice of texture the camera actually frames, so it reads on screen.
-    const moonX = w * 0.32;
-    const moonY = h * 0.42;
-    const halo = ctx.createRadialGradient(moonX, moonY, 4, moonX, moonY, 200);
-    halo.addColorStop(0, 'rgba(226, 222, 202, 0.92)');
-    halo.addColorStop(0.16, 'rgba(202, 198, 180, 0.36)');
-    halo.addColorStop(1, 'rgba(202, 198, 180, 0)');
-    ctx.fillStyle = halo;
-    ctx.fillRect(0, h * 0.1, w, h * 0.6);
-    ctx.fillStyle = 'rgba(236, 232, 212, 0.97)';
-    ctx.beginPath();
-    ctx.arc(moonX, moonY, 32, 0, Math.PI * 2);
-    ctx.fill();
+    // (The moon is no longer baked here — it's a separate sprite (<Moon/>) that
+    // rises slowly through the session. Only the stars + trees stay fixed.)
 
     // Treeline depth bands: back rows hazier/higher, front rows darker/lower.
     // All sit within the visible lower band; crowns spill above off-screen.
@@ -1851,6 +1863,59 @@ function Backdrop() {
     <mesh position={[0, TUNING.visual.backdropY, -(TUNING.world.pondHeightM * 0.5) - 0.5]} rotation={[TUNING.visual.backdropTilt, 0, 0]} renderOrder={-1}>
       <planeGeometry args={[18, TUNING.visual.backdropHeight]} />
       <meshBasicMaterial map={treeline} transparent depthWrite={false} fog={false} />
+    </mesh>
+  );
+}
+
+function createMoonTexture(): THREE.Texture {
+  if (typeof document === 'undefined') {
+    return new THREE.Texture();
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const cx = 64;
+    const cy = 64;
+    const halo = ctx.createRadialGradient(cx, cy, 6, cx, cy, 64);
+    halo.addColorStop(0, 'rgba(236, 232, 212, 0.95)');
+    halo.addColorStop(0.22, 'rgba(220, 216, 196, 0.5)');
+    halo.addColorStop(0.5, 'rgba(202, 198, 180, 0.16)');
+    halo.addColorStop(1, 'rgba(202, 198, 180, 0)');
+    ctx.fillStyle = halo;
+    ctx.fillRect(0, 0, 128, 128);
+    const disc = ctx.createRadialGradient(cx - 4, cy - 5, 2, cx, cy, 22);
+    disc.addColorStop(0, 'rgba(245, 241, 224, 1)');
+    disc.addColorStop(1, 'rgba(228, 224, 204, 0.95)');
+    ctx.fillStyle = disc;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 22, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// The moon rises slowly through the session "like time is really passing".
+// A sprite in front of the treeline, climbing from near the crowns into the sky.
+function Moon() {
+  const texture = useMemo(() => createMoonTexture(), []);
+  const meshRef = useRef<THREE.Mesh>(null);
+  const yRef = useRef(TUNING.visual.moonStartY);
+
+  useFrame((_, delta) => {
+    if (!meshRef.current) return;
+    yRef.current = Math.min(TUNING.visual.moonRiseMaxY, yRef.current + delta * TUNING.visual.moonRiseMPerSec);
+    meshRef.current.position.y = yRef.current;
+  });
+
+  const span = TUNING.visual.moonRadiusM * 2.8;
+  return (
+    <mesh ref={meshRef} position={[TUNING.visual.moonX, TUNING.visual.moonStartY, TUNING.visual.moonZ]} renderOrder={-0.5}>
+      <planeGeometry args={[span, span]} />
+      <meshBasicMaterial map={texture} transparent depthWrite={false} fog={false} />
     </mesh>
   );
 }
@@ -2025,7 +2090,9 @@ function createRuntime(seed: string, spawnIndex = 0): Runtime {
   const lurePos = { ...TUNING.world.lureStart };
   const fish = createInitialFish(rng);
   const fishSpecies = speciesTuning(fish.instance.species);
-  const extraCount = Math.floor(rng() * TUNING.world.fishMaxVisible);
+  // Always fill the pool so the bigger water reads populated and spread out,
+  // not sparse (19_THE_FAR_WATER): one primary + (fishMaxVisible - 1) decor.
+  const extraCount = TUNING.world.fishMaxVisible - 1;
   const decorFish: DecorFish[] = Array.from({ length: extraCount }, () => ({
     snapshot: createInitialFish(rng),
     fadePhase: rng() * Math.PI * 2,
@@ -2070,7 +2137,8 @@ function createRuntime(seed: string, spawnIndex = 0): Runtime {
     highFpsSince: 0,
     degradationLevel: 0,
     pixelRatio: typeof window === 'undefined' ? 1 : Math.min(window.devicePixelRatio, TUNING.performance.pixelRatioCap),
-    aimTarget: null
+    aimTarget: null,
+    aimSpread: 0
   };
 }
 

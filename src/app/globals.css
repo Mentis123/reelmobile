@@ -427,6 +427,18 @@ code {
   box-shadow: 0 0 12px rgba(200, 168, 92, 0.62);
 }
 
+/* Uncertainty zone where a cast may land — grows with reach so the accuracy
+   falloff reads as a designed mechanic, not a jittery bug (19_THE_FAR_WATER). */
+.aim-spread-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  border-radius: 999px;
+  border: 1.5px dashed rgba(200, 168, 92, 0.5);
+  background: radial-gradient(closest-side, rgba(200, 168, 92, 0.1), rgba(200, 168, 92, 0));
+}
+
 .bite-halo {
   position: absolute;
   left: 0;
