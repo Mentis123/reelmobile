@@ -1363,7 +1363,17 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
     });
 
     const bend = rodTipFor(current.tension, hookImpulseFor(current, now));
-    projVec.set(bend.x + current.rodOffset.x, TUNING.world.rodTipY, bend.z + current.rodOffset.z);
+    // Aim-sway: while choosing a cast, the visual rod tip leans toward the aim
+    // point so the rod tracks where you're about to throw (19_THE_FAR_WATER).
+    // This is visual only — the cast origin stays TUNING.world.rodTip — and the
+    // line isn't drawn while aiming, so there's nothing to disconnect.
+    let tipX = bend.x + current.rodOffset.x;
+    let tipZ = bend.z + current.rodOffset.z;
+    if (current.aimTarget) {
+      tipX += (current.aimTarget.x - TUNING.world.rodTip.x) * TUNING.world.rodAimLeanFraction;
+      tipZ += (current.aimTarget.z - TUNING.world.rodTip.z) * TUNING.world.rodAimLeanFraction;
+    }
+    projVec.set(tipX, TUNING.world.rodTipY, tipZ);
     const rodTipScreen = projectVecToScreen(projVec, camera, size);
 
     projVec.set(current.lurePos.x, current.lureY, current.lurePos.z);
@@ -1938,37 +1948,39 @@ function RodReel({ rodButtScreen, rodTipScreen }: { rodButtScreen: ScreenPoint; 
   const ty = dy / length;
   const nx = ty;
   const ny = -tx;
-  const reelDistance = TUNING.world.rodReelOffsetPx;
-  const cx = rodButtScreen.x + tx * 18;
-  const cy = rodButtScreen.y + ty * 18;
+  // Single scale factor doubles the whole reel (19_THE_FAR_WATER rod-in-hand).
+  const s = TUNING.world.rodReelScale;
+  const reelDistance = TUNING.world.rodReelOffsetPx * s;
+  const cx = rodButtScreen.x + tx * 18 * s;
+  const cy = rodButtScreen.y + ty * 18 * s;
   const reelX = cx + nx * reelDistance;
   const reelY = cy + ny * reelDistance;
-  const handleX = reelX + tx * 4 + nx * 9;
-  const handleY = reelY + ty * 4 + ny * 9;
-  const knobX = handleX + nx * 4 + tx * 1;
-  const knobY = handleY + ny * 4 + ty * 1;
+  const handleX = reelX + tx * 4 * s + nx * 9 * s;
+  const handleY = reelY + ty * 4 * s + ny * 9 * s;
+  const knobX = handleX + nx * 4 * s + tx * 1 * s;
+  const knobY = handleY + ny * 4 * s + ty * 1 * s;
 
   return (
     <g className="rod-reel">
       <line
         x1={cx}
         y1={cy}
-        x2={reelX + nx * 1.5}
-        y2={reelY + ny * 1.5}
+        x2={reelX + nx * 1.5 * s}
+        y2={reelY + ny * 1.5 * s}
         stroke="#3a2718"
         strokeLinecap="round"
-        strokeWidth="2.4"
+        strokeWidth={2.4 * s}
       />
       <circle
         cx={reelX}
         cy={reelY}
-        r="9.5"
+        r={9.5 * s}
         fill="rgba(20, 24, 24, 0.78)"
         stroke="var(--moonlight)"
-        strokeWidth="1.6"
+        strokeWidth={1.6 * s}
       />
-      <circle cx={reelX} cy={reelY} r="6.5" fill="rgba(40, 44, 44, 0.78)" />
-      <circle cx={reelX} cy={reelY} r="3" fill="var(--ui-gold)" />
+      <circle cx={reelX} cy={reelY} r={6.5 * s} fill="rgba(40, 44, 44, 0.78)" />
+      <circle cx={reelX} cy={reelY} r={3 * s} fill="var(--ui-gold)" />
       <line
         x1={reelX}
         y1={reelY}
@@ -1976,9 +1988,9 @@ function RodReel({ rodButtScreen, rodTipScreen }: { rodButtScreen: ScreenPoint; 
         y2={handleY}
         stroke="var(--moonlight)"
         strokeLinecap="round"
-        strokeWidth="1.8"
+        strokeWidth={1.8 * s}
       />
-      <circle cx={knobX} cy={knobY} r="2.6" fill="var(--ui-gold)" stroke="rgba(20, 24, 24, 0.7)" strokeWidth="0.8" />
+      <circle cx={knobX} cy={knobY} r={2.6 * s} fill="var(--ui-gold)" stroke="rgba(20, 24, 24, 0.7)" strokeWidth={0.8 * s} />
     </g>
   );
 }
