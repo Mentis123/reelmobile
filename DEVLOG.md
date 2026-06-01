@@ -587,3 +587,7 @@ Append after every milestone. Format:
 - Re-confirmed by headless render: uncertainty ring visible and reach-scaled, preview/rod smooth (no jitter), ~5 fish spread across the water, moon present low near the treeline.
 
 **Constitution:** `v0.0-ultracode-ratified` was **e-signed by the owner** (Adam Rappaport / Mentis123, by explicit chat consent, 2026-06-01) on the `18_ULTRACODE_PARADIGM` commit — the agent created the tag solely under that recorded consent.
+
+**Slice — second gate look (same candidate):**
+- *"Fish all start in the foreground"* — `spawnFishFromInstance` seeded every fish near `fishStart` (z≈1.35). Now spawns each at `nextWanderTarget` (anywhere near→far across the fishable water), so they begin spread across the expanse; far ones sit dim in the murk.
+- *"Moon is in front of the distant trees, should be behind"* — the backdrop baked sky+trees into one plane with the moon sprite on top. Split into a back sky+stars layer (renderOrder -3) and a front transparent treeline layer (-1), moon between (-2). Foliage now occludes the moon; it rises out from behind the far shore. Verified headless: moon glows behind the treeline, fish fan across the water.
