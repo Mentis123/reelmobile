@@ -544,3 +544,11 @@ Append after every milestone. Format:
 - **Backdrop placement (#7, deferred):** `backdropY`/`backdropTilt` are now /dev-adjustable — confirm the treeline still fills the top strip across portrait/tall/wide.
 - **Caustics under Focus:** confirm they visibly calm when Focus engages and no longer compete with cues in the foreground.
 - Only a human, on a real iPhone, may create `v0.3.2-pond-polish-approved`.
+
+**Slice — backdrop reframing (first gate look, same candidate):**
+- First iPhone look passed the colour pass (deeper water reads, fish still findable) but flagged the far shore as "not seeing all the scene": the treeline was a thin band of mid-foliage with the crowns chopped off the top and the moon hidden down at the waterline.
+- Diagnosed against the **real camera projection** (headless chromium at the 430×932 portrait aspect, screenshotting the live deploy — not a local build). The horizon is camera-fixed and high, so the backdrop is always a ~90px strip; the camera is load-bearing for the approved cast/fish/rod screen-projection and was left untouched.
+- Lifted `backdropHeight` into `TUNING.visual`, then swept `backdropY`/`backdropHeight` via temporary `?by/?bh` query overrides from a single deploy. Winner: lower the plane (`backdropY` 0.8 → 0.2) so the strip frames sky + moon + full crowns instead of mid-foliage; the base drops to y=-1.2 (no waterline gap) and the sky still fills to the top edge (no void seam).
+- Repacked the canopy texture to fill the reframed strip: moon raised `h*0.62 → h*0.42` into the framed slice + brighter halo, and a faint star scatter for depth.
+- Temporary `?by/?bh/?bt` instrumentation removed; final values baked into `TUNING.visual`. Re-confirmed by headless render at defaults.
+- Still the same candidate before the gate — re-check the **placement** item (treeline fills the top strip across portrait/tall/wide) and that the moon/sky now read as a far shore.
