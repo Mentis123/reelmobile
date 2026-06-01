@@ -40,14 +40,11 @@ export function createDecorFish(seedRand: () => number, species: SpeciesId): Fis
 }
 
 function spawnFishFromInstance(seedRand: () => number, instance: FishInstance): FishSnapshot {
-  const offset = (seedRand() - 0.5) * TUNING.world.fishWanderRadiusM;
-  const position = {
-    x: TUNING.world.fishStart.x + offset,
-    z: TUNING.world.fishStart.z + (seedRand() - 0.5) * TUNING.world.fishWanderRadiusM * 0.5
-  };
-
+  // Spawn anywhere across the whole fishable water — near to far — so the fish
+  // start spread out across the expanse instead of all bunched in the near
+  // foreground (19_THE_FAR_WATER). They wander from there.
   return {
-    position,
+    position: nextWanderTarget(seedRand),
     velocity: { x: 0, z: 0 },
     state: { kind: 'wander', targetPos: nextWanderTarget(seedRand), sinceMs: 0 },
     instance

@@ -1746,7 +1746,51 @@ function paintFoliageCluster(
 // material so the haze is painted here rather than washing the trees to teal.
 const TREELINE_VISIBLE_TOP = TUNING.visual.treelineVisibleTop; // canvas fraction below which content shows
 
-function createCanopyTexture(): THREE.Texture {
+// The backdrop is split into two layers so the rising moon can sit BETWEEN them
+// (in the sky, behind the trees). Back layer = sky + stars (opaque). Front layer
+// = trees + bank + fireflies + mist on a transparent ground, so the sky and the
+// moon show through the gaps and the foliage occludes the moon where it's dense.
+function createSkyTexture(): THREE.Texture {
+  if (typeof document === 'undefined') {
+    return new THREE.Texture();
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+
+  if (ctx) {
+    const rng = seededRandom('m4-sky');
+
+    // Dusk sky, darkening toward the deep far-water at the waterline so the
+    // backdrop base dissolves into the pond rather than the void.
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#20323a');
+    sky.addColorStop(0.5, '#2c454b');
+    sky.addColorStop(0.82, '#3a585a');
+    sky.addColorStop(1, TUNING.visual.waterDeep);
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
+
+    // Faint star scatter high in the sky for depth.
+    for (let i = 0; i < 40; i += 1) {
+      ctx.globalAlpha = 0.12 + rng() * 0.4;
+      ctx.fillStyle = 'rgba(220, 224, 224, 1)';
+      ctx.beginPath();
+      ctx.arc(rng() * w, h * (0.06 + rng() * 0.34), 0.5 + rng() * 1.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  const map = new THREE.CanvasTexture(canvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  return map;
+}
+
+function createTreelineTexture(): THREE.Texture {
   if (typeof document === 'undefined') {
     return new THREE.Texture();
   }
@@ -1761,42 +1805,15 @@ function createCanopyTexture(): THREE.Texture {
   if (ctx) {
     const rng = seededRandom('m4-treeline');
 
-    // The waterline of this backdrop meets the far edge of the pond water, so it
-    // tracks TUNING.visual.waterDeep — when the pond deepens, the backdrop base
-    // deepens with it and the seam stays closed. (sRGB-safe parse, no colour
-    // management, so the bytes match the hex the shader is fed.)
+    // Transparent ground (no fillRect): the sky + moon behind show through every
+    // gap. Mist tracks TUNING.visual.waterDeep so the base meets the far water.
     const deepHex = TUNING.visual.waterDeep;
     const deepN = parseInt(deepHex.slice(1), 16);
     const deepR = (deepN >> 16) & 255;
     const deepG = (deepN >> 8) & 255;
     const deepB = deepN & 255;
 
-    // Dusk sky behind the trees, darkening toward the deep far-water at the
-    // waterline so the backdrop base dissolves into the pond rather than the void.
-    const sky = ctx.createLinearGradient(0, 0, 0, h);
-    sky.addColorStop(0, '#20323a');
-    sky.addColorStop(0.5, '#2c454b');
-    sky.addColorStop(0.82, '#3a585a');
-    sky.addColorStop(1, deepHex);
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, w, h);
-
-    // A faint star scatter high in the dusk sky, behind the moon and trees, to
-    // give the far shore some depth instead of a flat green band.
-    for (let i = 0; i < 40; i += 1) {
-      ctx.globalAlpha = 0.12 + rng() * 0.4;
-      ctx.fillStyle = 'rgba(220, 224, 224, 1)';
-      ctx.beginPath();
-      ctx.arc(rng() * w, h * (0.06 + rng() * 0.34), 0.5 + rng() * 1.1, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-
-    // (The moon is no longer baked here — it's a separate sprite (<Moon/>) that
-    // rises slowly through the session. Only the stars + trees stay fixed.)
-
     // Treeline depth bands: back rows hazier/higher, front rows darker/lower.
-    // All sit within the visible lower band; crowns spill above off-screen.
     const bands: Array<{ y: number; fill: string; alpha: number; size: number }> = [
       { y: h * 0.5, fill: '#3c5147', alpha: 0.55, size: 96 },
       { y: h * 0.62, fill: '#2c3e2a', alpha: 0.84, size: 120 },
@@ -1824,10 +1841,6 @@ function createCanopyTexture(): THREE.Texture {
       paintFoliageCluster(ctx, x + rng() * 50, h * (0.9 + rng() * 0.05), 70, 30, 10, rng);
     }
 
-    // (Removed: stone-lantern silhouette that "echoed the reference statue" —
-    // a 14_DO_NOT_BUILD breach. The full-width mossy bank painted above already
-    // covers this stretch of waterline, so its removal leaves no notch.)
-
     // Faint fireflies drifting in front of the trees.
     ctx.fillStyle = 'rgba(234, 230, 210, 0.8)';
     for (let i = 0; i < 30; i += 1) {
@@ -1837,8 +1850,7 @@ function createCanopyTexture(): THREE.Texture {
       ctx.fill();
     }
 
-    // Waterline mist blending the base into the deep far-water edge (tracks the
-    // same deep-water colour as the sky stop above, so the seam stays closed).
+    // Waterline mist blending the base into the deep far-water edge.
     ctx.globalAlpha = 1;
     const mist = ctx.createLinearGradient(0, h * 0.9, 0, h);
     mist.addColorStop(0, `rgba(${deepR}, ${deepG}, ${deepB}, 0)`);
@@ -1853,17 +1865,26 @@ function createCanopyTexture(): THREE.Texture {
 }
 
 function Backdrop() {
-  const treeline = useMemo(() => createCanopyTexture(), []);
+  const sky = useMemo(() => createSkyTexture(), []);
+  const treeline = useMemo(() => createTreelineTexture(), []);
 
-  // Vertical wall standing up from just beyond the far water edge. The plane is
-  // lowered (backdropY 0.2) so the camera-fixed horizon strip frames the full
-  // far shore — sky, moon, and tree crowns — rather than a band of mid-foliage;
-  // its base sits at y=-1.2, well under the water horizon, so there is no seam.
+  // Two coplanar walls just beyond the far water edge: sky behind (renderOrder
+  // -3), treeline in front (-1). The rising moon draws at -2, between them, so
+  // the foliage occludes it and it reads as being in the sky behind the trees.
+  // backdropY 0.2 frames the full far shore; base at y=-1.2 tucks under the
+  // water horizon, so there is no seam.
+  const z = -(TUNING.world.pondHeightM * 0.5) - 0.5;
   return (
-    <mesh position={[0, TUNING.visual.backdropY, -(TUNING.world.pondHeightM * 0.5) - 0.5]} rotation={[TUNING.visual.backdropTilt, 0, 0]} renderOrder={-1}>
-      <planeGeometry args={[18, TUNING.visual.backdropHeight]} />
-      <meshBasicMaterial map={treeline} transparent depthWrite={false} fog={false} />
-    </mesh>
+    <>
+      <mesh position={[0, TUNING.visual.backdropY, z]} rotation={[TUNING.visual.backdropTilt, 0, 0]} renderOrder={-3}>
+        <planeGeometry args={[18, TUNING.visual.backdropHeight]} />
+        <meshBasicMaterial map={sky} transparent depthWrite={false} fog={false} />
+      </mesh>
+      <mesh position={[0, TUNING.visual.backdropY, z]} rotation={[TUNING.visual.backdropTilt, 0, 0]} renderOrder={-1}>
+        <planeGeometry args={[18, TUNING.visual.backdropHeight]} />
+        <meshBasicMaterial map={treeline} transparent depthWrite={false} fog={false} />
+      </mesh>
+    </>
   );
 }
 
@@ -1913,7 +1934,7 @@ function Moon() {
 
   const span = TUNING.visual.moonRadiusM * 2.8;
   return (
-    <mesh ref={meshRef} position={[TUNING.visual.moonX, TUNING.visual.moonStartY, TUNING.visual.moonZ]} renderOrder={-0.5}>
+    <mesh ref={meshRef} position={[TUNING.visual.moonX, TUNING.visual.moonStartY, TUNING.visual.moonZ]} renderOrder={-2}>
       <planeGeometry args={[span, span]} />
       <meshBasicMaterial map={texture} transparent depthWrite={false} fog={false} />
     </mesh>
