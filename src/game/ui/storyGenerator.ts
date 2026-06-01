@@ -25,7 +25,7 @@ export function generateStory(catchEntry: Catch): string {
       : 'Steady fight.';
   const duration = catchEntry.durationMs > 15000
     ? `Took over ${Math.round(catchEntry.durationMs / 1000)} seconds.`
-    : 'Came in close to the dock.';
+    : 'Reeled it in close.';
 
   return `Caught.\n${size} ${speciesLabel}.\nTook the ${lureLabel}.\n${struggle}\n${duration}`.trim();
 }

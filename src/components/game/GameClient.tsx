@@ -134,7 +134,6 @@ type SceneProps = {
 
 const ASSETS = {
   waterNormal: '/assets/textures/water_normal.webp',
-  dockPlanks: '/assets/textures/dock_planks.webp',
   lureDefault: '/assets/sprites/lure_default.webp'
 } as const;
 
@@ -987,8 +986,32 @@ export function GameClient() {
       z: Math.min(target.z, TUNING.world.rodTip.z - TUNING.input.castMinForwardM)
     };
 
+    // Accuracy falloff (19_THE_FAR_WATER): scatter the landing point by a radius
+    // that grows with how far the cast reaches. Deterministic per gesture (hashed
+    // from the release point) so the same drag always lands the same — testable,
+    // and not a slot machine. sqrt() keeps the scatter uniform across the disc.
+    const reach = Math.hypot(visibleTarget.x - TUNING.world.rodTip.x, visibleTarget.z - TUNING.world.rodTip.z);
+    const reachT = clamp(reach / TUNING.input.castMaxRangeM, 0, 1);
+    const spreadRadius = lerp(
+      TUNING.input.castSpreadNearM,
+      TUNING.input.castSpreadFarM,
+      Math.pow(reachT, TUNING.input.castSpreadCurve)
+    );
+    const hash = (n: number) => {
+      const s = Math.sin(n) * 43758.5453;
+      return s - Math.floor(s);
+    };
+    const spreadAngle = hash(endX * 12.9898 + endY * 78.233) * Math.PI * 2;
+    const spreadDist = Math.sqrt(hash(endX * 39.346 + endY * 11.135)) * spreadRadius;
+    const scattered = {
+      x: visibleTarget.x + Math.cos(spreadAngle) * spreadDist,
+      z: visibleTarget.z + Math.sin(spreadAngle) * spreadDist
+    };
+
     return {
-      target: clampToFishableWater(visibleTarget),
+      target: clampToFishableWater(scattered),
+      aimTarget: clampToFishableWater(visibleTarget),
+      spreadRadius,
       power,
       flightMs: lerp(TUNING.input.castFlightTimeMin, TUNING.input.castFlightTimeMax, power) * TUNING.timing.msPerSecond
     };
@@ -1008,9 +1031,8 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
   const fishFacingAnglesRef = useRef<Array<number | null>>(
     Array.from({ length: TUNING.world.fishMaxVisible }, () => null)
   );
-  const [waterNormalTexture, dockTexture, lureTexture] = useLoader(THREE.TextureLoader, [
+  const [waterNormalTexture, lureTexture] = useLoader(THREE.TextureLoader, [
     ASSETS.waterNormal,
-    ASSETS.dockPlanks,
     ASSETS.lureDefault
   ]);
   const silhouettes = useMemo(() => createSpeciesSilhouettes(), []);
@@ -1039,14 +1061,8 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
     waterNormalTexture.colorSpace = THREE.NoColorSpace;
     waterNormalTexture.needsUpdate = true;
 
-    dockTexture.wrapS = THREE.RepeatWrapping;
-    dockTexture.wrapT = THREE.ClampToEdgeWrapping;
-    dockTexture.repeat.set(1, 1);
-    dockTexture.colorSpace = THREE.SRGBColorSpace;
-    dockTexture.needsUpdate = true;
-
     lureTexture.colorSpace = THREE.SRGBColorSpace;
-  }, [dockTexture, lureTexture, waterNormalTexture]);
+  }, [lureTexture, waterNormalTexture]);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -1309,7 +1325,7 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
       const fade = isPrimary
         ? fishFadeMultiplier(now, current.fishFadePhase, current.fishFadePeriodMs)
         : fishFadeMultiplier(now, current.decorFish[i - 1].fadePhase, current.decorFish[i - 1].fadePeriodMs);
-      material.opacity = baseOpacity * species.opacityMultiplier * fishDepthVisibility(snapshot.position) * fade;
+      material.opacity = baseOpacity * species.opacityMultiplier * fishDistanceVisibility(snapshot.position) * fade;
       material.color.set(snapshot.state.kind === 'commit' || snapshot.state.kind === 'bite' ? '#202323' : '#111718');
 
       const speed = Math.hypot(snapshot.velocity.x, snapshot.velocity.z);
@@ -1377,7 +1393,6 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
       <PondWater runtime={runtime} normalMap={waterNormalTexture} />
       <WaterRipples ripples={ripples} />
       <Reeds />
-      <Dock texture={dockTexture} />
       <Foreshore />
       {Array.from({ length: TUNING.world.fishMaxVisible }, (_, i) => (
         <mesh
@@ -1613,27 +1628,6 @@ function cueColor(ripple: Ripple): string {
   }
 
   return '#d8d4c2';
-}
-
-function Dock({ texture }: { texture: THREE.Texture }) {
-  return (
-    <group position={[0, TUNING.world.dockY, TUNING.world.dockZ]}>
-      {Array.from({ length: TUNING.world.dockPlankCount }, (_, index) => {
-        const width = TUNING.world.dockWidthM / TUNING.world.dockPlankCount - TUNING.world.dockPlankGapM;
-        const x = -TUNING.world.dockWidthM * 0.5 + width * 0.5 + index * (width + TUNING.world.dockPlankGapM);
-        return (
-          <mesh key={index} position={[x, 0, 0]}>
-            <boxGeometry args={[width, TUNING.world.dockThicknessM, TUNING.world.dockLengthM]} />
-            <meshStandardMaterial map={texture} color="#d0a06d" roughness={0.88} />
-          </mesh>
-        );
-      })}
-      <mesh position={[0, -0.04, -TUNING.world.dockLengthM * 0.46]}>
-        <boxGeometry args={[TUNING.world.dockWidthM + 0.16, TUNING.world.dockThicknessM * 0.72, 0.12]} />
-        <meshStandardMaterial color="#4f3422" roughness={0.9} />
-      </mesh>
-    </group>
-  );
 }
 
 function Reeds() {
@@ -2420,14 +2414,18 @@ function hookImpulseFor(runtime: Runtime, now: number): number {
   return (runtime.hookJerkUntil - now) / TUNING.timing.hookJerkMs;
 }
 
-function fishDepthVisibility(position: Vec2): number {
-  const depth = clamp(
-    (position.z - TUNING.world.fishableMinZ) / (TUNING.world.pondHeightM * 0.72),
+function fishDistanceVisibility(position: Vec2): number {
+  // 1 at the near foreshore (clear water), fading to fishFarVisibility out at the
+  // far shore — the dark you cast blind into, and the clarity you reel a hooked
+  // fish back into (19_THE_FAR_WATER). Curve > 1 so the far half goes murky fast.
+  const nearness = clamp(
+    (position.z - TUNING.world.fishableMinZ) / (TUNING.world.fishableMaxZ - TUNING.world.fishableMinZ),
     0,
     1
   );
+  const shaped = Math.pow(nearness, TUNING.world.fishFarVisibilityCurve);
 
-  return lerp(TUNING.world.fishShallowOpacityMultiplier, TUNING.world.fishDeepOpacityMultiplier, depth);
+  return lerp(TUNING.world.fishFarVisibility, TUNING.world.fishNearVisibility, shaped);
 }
 
 function fishFadeMultiplier(nowMs: number, phase: number, periodMs: number): number {

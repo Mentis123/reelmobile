@@ -6,17 +6,16 @@ The agent's job is **not** to build a fishing game.
 
 The agent's job is to make this paragraph happen on a real iPhone:
 
-> I saw something move.
-> I think it was big.
-> I crept along the dock to get a better angle.
-> I cast just past it.
-> It turned.
-> It followed.
-> It almost bit.
-> I twitched once.
-> It struck.
-> I panicked.
-> I nearly snapped the line.
+> Way out, near the far shore, something rolled.
+> Too far to tell how big.
+> I could wait for it to wander in close, where my cast would land true.
+> I didn't wait.
+> I aimed long — out past where the water went dark — and let go.
+> The lure dropped near it. Not dead on. Near enough.
+> It turned toward the splash.
+> It followed the lure in, out of the dark, into water I could finally read.
+> It was bigger than I'd hoped.
+> It struck. I panicked. I nearly snapped the line.
 > I landed it.
 > I want to do that again.
 
@@ -30,9 +29,9 @@ That is the game.
 
 ## What Reel Mobile is
 
-A mobile-first browser fishing game about one perfect pond.
+A mobile-first browser fishing game about one body of water that stretches away from you to a far shore.
 
-Single pond. Ambient. Tactile. Mysterious. The fish are not labelled. The water is not transparent. The player has to *read* the surface to find what's beneath it.
+Single water. Ambient. Tactile. Mysterious. The fish are not labelled. The water is not transparent. **Distance is the game.** Close in, the water is clear and a cast lands where you put it. Far out, near the other shore, the water goes dark — you see movement, not fish, and a long cast scatters instead of placing. The player has to *read* the surface across that distance, decide whether to wait for a fish to come into clear water or gamble a long blind cast into the dark, and — when it works — reel the unknown back in until they can finally see what they hooked.
 
 ## What Reel Mobile is not
 
@@ -64,3 +63,4 @@ Single pond. Ambient. Tactile. Mysterious. The fish are not labelled. The water 
 17. `16_HUMAN_GATES.md` — when the workflow stops
 18. `17_RESEARCH_NOTES.md` — references and rationale
 19. `18_ULTRACODE_PARADIGM.md` — the ultracode self-verification amendment
+20. `19_THE_FAR_WATER.md` — the distance loop: range, accuracy falloff, visibility falloff, rod-in-hand (supersedes the dock framing)

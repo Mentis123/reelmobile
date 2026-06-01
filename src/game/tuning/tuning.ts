@@ -18,10 +18,6 @@ export const TUNING = {
     cameraPosition: [0, 6.2, 7.8] as [number, number, number],
     cameraTarget: [0, 0, 0] as [number, number, number],
     cameraFov: 38,
-    dockWidthM: 3.4,
-    dockLengthM: 3.2,
-    dockY: 0.1,
-    dockZ: -4.85,
     rodTip: { x: 0.55, z: 3.05 },
     rodButt: { x: 0, z: 4.6 },
     rodTipY: 0.4,
@@ -35,7 +31,7 @@ export const TUNING = {
     lineSagAmplitudeY: 0.32,
     lureStart: { x: 0, z: -3.45 },
     fishStart: { x: -1.4, z: 1.35 },
-    fishWanderRadiusM: 4.2,
+    fishWanderRadiusM: 5.5,
     fishVisualWidthM: 0.9,
     fishVisualHeightM: 0.28,
     // Co-tuned with TUNING.visual.waterDeep/waterShallow: nudged 0.40 -> 0.46 to
@@ -44,8 +40,14 @@ export const TUNING = {
     // black blob. The deep/shallow multipliers below keep their depth-fade ratio.
     fishCueOpacity: 0.46,
     fishCommitOpacity: 0.66,
-    fishDeepOpacityMultiplier: 0.62,
-    fishShallowOpacityMultiplier: 1.18,
+    // Distance visibility (19_THE_FAR_WATER): a fish reads clearly in the near
+    // water and fades into the dark out toward the far shore — the murk you cast
+    // blind into, and the clarity you reel a hooked fish back into. Curve > 1 so
+    // the far half goes murky fast. (Supersedes the old deep/shallow fade, which
+    // made far fish *brighter* — backwards for the distance loop.)
+    fishFarVisibility: 0.3,
+    fishNearVisibility: 1.15,
+    fishFarVisibilityCurve: 1.6,
     fishFadeMinMultiplier: 0.55,
     fishFadeMaxMultiplier: 1.15,
     fishFadeMinPeriodMs: 4200,
@@ -55,11 +57,8 @@ export const TUNING = {
     rippleHeightM: 0.012,
     rippleSegments: 48,
     waterSegments: 32,
-    dockThicknessM: 0.18,
-    dockPlankCount: 5,
-    dockPlankGapM: 0.04,
-    fishableMinZ: -3.05,
-    fishableMaxZ: 1.2,
+    fishableMinZ: -5.4,
+    fishableMaxZ: 1.8,
     cameraLookAtLerp: 0.08
   },
   // Pond visual constants consumed by the WebGL scene (PondWater shader, fog,
@@ -96,9 +95,17 @@ export const TUNING = {
   input: {
     castPowerMin: 0.05,
     castPowerMax: 1,
-    castMaxRangeM: 8,
-    castVisibleHalfWidthM: 1.9,
-    castMinForwardM: 0.6,
+    // Range now spans from just off the bank out to the far shore (19_THE_FAR_WATER).
+    castMaxRangeM: 9.5,
+    castVisibleHalfWidthM: 3.2,
+    castMinForwardM: 0.25,
+    // Accuracy falloff: a short cast lands true; a long cast scatters. The lure
+    // is offset from the aim point by a random vector (deterministic per gesture)
+    // whose radius grows from castSpreadNearM at the bank to castSpreadFarM at the
+    // far shore. Curve > 1 so close casts stay tight and only long reaches blow out.
+    castSpreadNearM: 0.06,
+    castSpreadFarM: 1.2,
+    castSpreadCurve: 1.7,
     castFlightTimeMin: 0.5,
     castFlightTimeMax: 1.2,
     castArcHeightM: 1.35,
