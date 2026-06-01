@@ -507,3 +507,40 @@ Append after every milestone. Format:
 
 **Next:**
 - STOP for human iPhone review through `/dev` QR against the M3.1 checklist plus a sanity check that the PR work (PWA install, multi-fish density, foreshore framing, rod anchor) still feels right.
+
+---
+
+## v0.3.2-pond-polish-candidate (2026-06-01)
+*Out-of-band visual-polish pass on the pond — not a Phase B milestone. First candidate built under the ratified ultracode amendment (`18_ULTRACODE_PARADIGM.md`): machine-checkable wiring self-verified by static artifact (greps below); feel/colour read is the canary and is deferred to the human iPhone gate. Co-tuned starting values are my best guess per "build my best co-tuned guess" — both directions are for the human to judge on glass.*
+
+**Shipped:**
+- **Deepened the pond water, co-tuned with fish opacity (the headline change).** New `TUNING.visual.waterDeep` `#2b4750` / `waterShallow` `#4a6f6a` — roughly halfway from the old `#3d6068`/`#6a958f` toward the `08_ART_DIRECTION` bible `#1a2b30`/`#2f4948`. *Partway, not all the way:* at full art-bible depth a near-black fish silhouette vanishes. To hold the read, `world.fishCueOpacity` nudged 0.40 → 0.46 in the **same diff** (recovers ~half the silhouette contrast the darker water costs; deep/shallow fade multipliers unchanged). The shader uniforms (`GameClient.tsx` `uDeep`/`uShallow`) now consume `TUNING.visual.*` and are **decoupled** from the `--water-deep`/`--water-shallow` `:root` CSS tokens, which still paint the loading screen, result card and tune page in the original teal.
+- **Separated the water from the void.** Background and fog were *both* `#3d6068` — byte-identical to the old water, which is exactly why the pond dissolved into its surround. Pushed to `TUNING.visual.voidColor`/`fogColor` `#101c20` (ink). `fogNear`/`fogFar` lifted (10/18, unchanged).
+- **Tamed the caustics.** `uCaustic` lifted to `TUNING.visual.causticStrength` and dropped 0.5 → 0.32; new `causticFocusMultiplier` 0.35 collapses them under Focus (`mix(1.0, uCausticFocusMul, uFocus)`); band weighting flipped from shallow-biased (`0.35 + 0.65*shallowW`) to deep-biased (`0.3 + 0.55*depth`) so the busy filaments leave the fishable foreground alone. `shallowW` removed (now dead).
+- **Removed the stone lantern** from the treeline backdrop — it "echoed the reference statue," a `14_DO_NOT_BUILD` breach. The full-width mossy bank painted underneath already covers that stretch of waterline, so removal leaves no notch; no replacement mesh added.
+- **Kept the backdrop seam closed.** The treeline sky's waterline stop and the waterline-mist gradient now *track* `TUNING.visual.waterDeep` (sRGB-safe hex parse, single source of truth) instead of the old hardcoded `#3d6068`/`rgb(61,96,104)`, so the backdrop base still melts into the (now deeper) far water.
+- **Lifted placement constants for the /dev gate** (values unchanged): `backdropY` 0.8, `backdropTilt` 0.12, `treelineVisibleTop` 0.4 → `TUNING.visual.*`.
+- Net cost: colour/constant/canvas-paint only. Zero new geometry, draw calls, textures, or rasters; the fragment shader gains one `mix()` + one multiply (negligible). No bloom/post, no new `.webp`.
+
+**Cut / deferred (named so the gate knows what it's *not* getting):**
+- `08_ART_DIRECTION` reed recolour — cut.
+- Foreshore tint — deferred.
+- The `fog={false}` toggle on the backdrop material (`08`/seam #6) — **deferred to the human**: only the *mist colour tracking* is shipped, not the toggle.
+- Blind backdrop re-tuning — cut; only the *lifting* of placement constants ships, not new values.
+- The far-shore parallax plate — still deferred.
+
+**Discovered:**
+- Background and fog literally shared the old water's hex (`#3d6068` × 3). The "void doesn't separate from the water" complaint wasn't subtle atmospherics — it was the same colour painted three times.
+- The shader's water colours were *already* separate literals from the `:root` tokens (not shared), so decoupling was a rename to `TUNING.visual.*`, not a refactor — the loading screen was never at risk of darkening once the shader stopped reusing the same hex by hand.
+- Deepening water and fish opacity are not independent knobs: a near-black silhouette over deep teal loses contrast fast, so they have to move together or the gate fails on "where did the fish go."
+
+**Verification (machine-checkable, self-certified per amendment §3):**
+- Static artifact sweep: no leftover `#3d6068`/`#6a958f`/`rgb(61,96,104)` in `GameClient.tsx`; the only surviving copies are the `:root` tokens + PWA `themeColor` (intended); all 11 `TUNING.visual` keys defined exactly once; `uCausticFocusMul` present in all three sites (JS uniform, GLSL decl, GLSL use); shader internally consistent (`causticBand`/`depth`/`uFocus`/`caustic` all in scope); no orphaned lantern vars.
+- `pnpm build` is **not** run locally (standing "never test locally" rule); Vercel's build is the §3.1 executor for typecheck/lint/build.
+
+**Next — the human iPhone gate (canary concerns, non-delegable):**
+- **Water-vs-fish contrast, judged *both* directions:** are fish still a shadow you have to *find* (not invisible), and *not* over-resolved into a hard black blob? If off, dial `waterDeep`/`waterShallow` lighter/darker and/or `fishCueOpacity` — they move together.
+- **Backdrop seam (#6, deferred):** does the treeline base still melt into the far water now that fog is ink, or does the fog/mist boundary show a line? If it shows, that's the `fog={false}` toggle decision.
+- **Backdrop placement (#7, deferred):** `backdropY`/`backdropTilt` are now /dev-adjustable — confirm the treeline still fills the top strip across portrait/tall/wide.
+- **Caustics under Focus:** confirm they visibly calm when Focus engages and no longer compete with cues in the foreground.
+- Only a human, on a real iPhone, may create `v0.3.2-pond-polish-approved`.

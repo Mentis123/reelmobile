@@ -4,7 +4,7 @@ export type DevChecklistItem = {
 };
 
 export type DevChecklist = {
-  milestone: 'm0' | 'm1' | 'm1.5' | 'm2' | 'm3' | 'm3.1';
+  milestone: 'm0' | 'm1' | 'm1.5' | 'm2' | 'm3' | 'm3.1' | 'm3.2';
   title: string;
   items: DevChecklistItem[];
 };
@@ -85,10 +85,27 @@ export const checklists: Record<DevChecklist['milestone'], DevChecklist> = {
       { id: 'fight', text: 'During the fight, does the fish surge back against the reel so I have to ease off?' },
       { id: 'loop-preserved', text: 'Are casting, twitch, rod control, bite, hook, failures, result, debug HUD, /dev, and /tune preserved?' }
     ]
+  },
+  'm3.2': {
+    milestone: 'm3.2',
+    title: 'M3.2 pond-polish real-iPhone gate',
+    items: [
+      { id: 'fish-visible', text: 'Over the deeper water, can I still find a fish — is it a shadow I have to read, NOT invisible?' },
+      { id: 'fish-not-blob', text: 'And the other way: is the fish NOT over-resolved into a hard black blob sitting on top of the water?' },
+      { id: 'water-vs-void', text: 'Does the water now read as separate from the surround, instead of dissolving into a same-colour background?' },
+      { id: 'seam', text: 'Backdrop seam: does the treeline base still melt into the far water, or does the fog/mist boundary show a line?' },
+      { id: 'placement', text: 'Does the treeline still fill the top strip across portrait, tall, and wide?' },
+      { id: 'caustics-focus', text: 'Do the caustics visibly calm when I hold Focus, and stop competing with cues in the foreground?' },
+      { id: 'loop-preserved', text: 'Are casting, twitch, rod control, bite, hook, fight, failures, result, debug HUD, /dev, and /tune all preserved?' }
+    ]
   }
 };
 
 export function getChecklist(milestone: string): DevChecklist {
+  if (milestone === 'm3.2') {
+    return checklists['m3.2'];
+  }
+
   if (milestone === 'm3.1') {
     return checklists['m3.1'];
   }

@@ -1369,8 +1369,8 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
 
   return (
     <>
-      <color attach="background" args={['#3d6068']} />
-      <fog attach="fog" args={['#3d6068', 10, 18]} />
+      <color attach="background" args={[TUNING.visual.voidColor]} />
+      <fog attach="fog" args={[TUNING.visual.fogColor, TUNING.visual.fogNear, TUNING.visual.fogFar]} />
       <ambientLight intensity={0.9} />
       <directionalLight position={[2.4, 5, 3]} intensity={1.35} />
       <Backdrop />
@@ -1408,11 +1408,12 @@ function PondWater({ runtime, normalMap }: { runtime: React.MutableRefObject<Run
     uTime: { value: 0 },
     uFocus: { value: 0 },
     uNormalMap: { value: normalMap },
-    uDeep: { value: new THREE.Color('#3d6068') },
-    uShallow: { value: new THREE.Color('#6a958f') },
+    uDeep: { value: new THREE.Color(TUNING.visual.waterDeep) },
+    uShallow: { value: new THREE.Color(TUNING.visual.waterShallow) },
     uMoonlight: { value: new THREE.Color('#c8c4b2') },
     uCanopy: { value: new THREE.Color('#3c5238') },
-    uCaustic: { value: 0.5 },
+    uCaustic: { value: TUNING.visual.causticStrength },
+    uCausticFocusMul: { value: TUNING.visual.causticFocusMultiplier },
     uGlareReduction: { value: TUNING.input.focusGlareReduction }
   }), [normalMap]);
 
@@ -1448,6 +1449,7 @@ function PondWater({ runtime, normalMap }: { runtime: React.MutableRefObject<Run
           uniform vec3 uMoonlight;
           uniform vec3 uCanopy;
           uniform float uCaustic;
+          uniform float uCausticFocusMul;
           uniform float uGlareReduction;
           varying vec2 vUv;
 
@@ -1458,10 +1460,10 @@ function PondWater({ runtime, normalMap }: { runtime: React.MutableRefObject<Run
             vec3 normalB = texture2D(uNormalMap, flowB).rgb * 2.0 - 1.0;
             vec3 normal = normalize(vec3(normalA.xy * 0.58 + normalB.xy * 0.28, 1.0));
             float depth = smoothstep(0.02, 0.92, vUv.y);
-            float shallowW = 1.0 - depth;
             float shore = smoothstep(0.0, 0.18, vUv.x) * smoothstep(1.0, 0.82, vUv.x) * smoothstep(0.0, 0.14, vUv.y) * smoothstep(1.0, 0.86, vUv.y);
 
-            // Base depth gradient (unchanged palette so fish keep their contrast).
+            // Base depth gradient (deepened palette; fish opacity is co-tuned in
+            // TUNING so silhouettes still read as a shadow you have to find).
             vec3 water = mix(uShallow * 1.18, uDeep * 1.08, depth);
 
             // Canopy colour-bounce: the far bank's foliage tints the far water.
@@ -1473,10 +1475,14 @@ function PondWater({ runtime, normalMap }: { runtime: React.MutableRefObject<Run
             float vein = texture2D(uNormalMap, vUv * 1.6 + vec2(uTime * 0.01, -uTime * 0.013)).b;
             water *= mix(1.0, 0.9 + 0.1 * vein, depth * 0.7);
 
-            // Moonlit caustics: shifting light filaments, brightest in shallows.
+            // Moonlit caustics: shifting light filaments, dim and biased deep.
             float c1 = texture2D(uNormalMap, vUv * 3.2 + vec2(uTime * 0.03, uTime * 0.018)).g;
             float c2 = texture2D(uNormalMap, vUv * 2.1 - vec2(uTime * 0.022, uTime * 0.015)).r;
-            float caustic = pow(clamp(c1 * c2 * 2.4, 0.0, 1.0), 2.2) * uCaustic * (0.35 + 0.65 * shallowW);
+            // Bias the filaments to the far/deep band (away from the fishable
+            // foreground) and collapse them under Focus so they stop competing
+            // with fish cues when the player is reading the water.
+            float causticBand = 0.3 + 0.55 * depth;
+            float caustic = pow(clamp(c1 * c2 * 2.4, 0.0, 1.0), 2.2) * uCaustic * causticBand * mix(1.0, uCausticFocusMul, uFocus);
 
             float fresnel = pow(1.0 - max(normal.z, 0.0), 2.0);
             float focusGlare = 0.24 * (1.0 - uGlareReduction);
@@ -1710,7 +1716,7 @@ function paintFoliageCluster(
 // (waterline, low moon, tree mass) is packed into that lower band, with the
 // canopy crowns running off the top of the frame. Fog is disabled on the
 // material so the haze is painted here rather than washing the trees to teal.
-const TREELINE_VISIBLE_TOP = 0.4; // canvas fraction below which content shows
+const TREELINE_VISIBLE_TOP = TUNING.visual.treelineVisibleTop; // canvas fraction below which content shows
 
 function createCanopyTexture(): THREE.Texture {
   if (typeof document === 'undefined') {
@@ -1727,12 +1733,23 @@ function createCanopyTexture(): THREE.Texture {
   if (ctx) {
     const rng = seededRandom('m4-treeline');
 
-    // Dusk sky behind the trees, warming toward the fog teal at the waterline.
+    // The waterline of this backdrop meets the far edge of the pond water, so it
+    // tracks TUNING.visual.waterDeep — when the pond deepens, the backdrop base
+    // deepens with it and the seam stays closed. (sRGB-safe parse, no colour
+    // management, so the bytes match the hex the shader is fed.)
+    const deepHex = TUNING.visual.waterDeep;
+    const deepN = parseInt(deepHex.slice(1), 16);
+    const deepR = (deepN >> 16) & 255;
+    const deepG = (deepN >> 8) & 255;
+    const deepB = deepN & 255;
+
+    // Dusk sky behind the trees, darkening toward the deep far-water at the
+    // waterline so the backdrop base dissolves into the pond rather than the void.
     const sky = ctx.createLinearGradient(0, 0, 0, h);
     sky.addColorStop(0, '#20323a');
     sky.addColorStop(0.5, '#2c454b');
     sky.addColorStop(0.82, '#3a585a');
-    sky.addColorStop(1, '#3d6068');
+    sky.addColorStop(1, deepHex);
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, w, h);
 
@@ -1779,19 +1796,9 @@ function createCanopyTexture(): THREE.Texture {
       paintFoliageCluster(ctx, x + rng() * 50, h * (0.9 + rng() * 0.05), 70, 30, 10, rng);
     }
 
-    // Stone-lantern silhouette on the far bank (echoes the reference statue).
-    ctx.globalAlpha = 0.92;
-    ctx.fillStyle = '#1b211f';
-    const lx = w * 0.72;
-    const ly = h * 0.88;
-    ctx.fillRect(lx - 4, ly, 8, 26);
-    ctx.fillRect(lx - 13, ly - 13, 26, 13);
-    ctx.beginPath();
-    ctx.moveTo(lx - 18, ly - 13);
-    ctx.lineTo(lx + 18, ly - 13);
-    ctx.lineTo(lx, ly - 28);
-    ctx.closePath();
-    ctx.fill();
+    // (Removed: stone-lantern silhouette that "echoed the reference statue" —
+    // a 14_DO_NOT_BUILD breach. The full-width mossy bank painted above already
+    // covers this stretch of waterline, so its removal leaves no notch.)
 
     // Faint fireflies drifting in front of the trees.
     ctx.fillStyle = 'rgba(234, 230, 210, 0.8)';
@@ -1802,11 +1809,12 @@ function createCanopyTexture(): THREE.Texture {
       ctx.fill();
     }
 
-    // Waterline mist blending the base into the fogged far water edge.
+    // Waterline mist blending the base into the deep far-water edge (tracks the
+    // same deep-water colour as the sky stop above, so the seam stays closed).
     ctx.globalAlpha = 1;
     const mist = ctx.createLinearGradient(0, h * 0.9, 0, h);
-    mist.addColorStop(0, 'rgba(61, 96, 104, 0)');
-    mist.addColorStop(1, 'rgba(61, 96, 104, 0.85)');
+    mist.addColorStop(0, `rgba(${deepR}, ${deepG}, ${deepB}, 0)`);
+    mist.addColorStop(1, `rgba(${deepR}, ${deepG}, ${deepB}, 0.85)`);
     ctx.fillStyle = mist;
     ctx.fillRect(0, h * 0.9, w, h * 0.1);
   }
@@ -1823,7 +1831,7 @@ function Backdrop() {
   // fill the top strip across portrait/tall/wide aspect ratios; bottom edge
   // tucks under the water horizon so there is no seam.
   return (
-    <mesh position={[0, 0.8, -(TUNING.world.pondHeightM * 0.5) - 0.5]} rotation={[0.12, 0, 0]} renderOrder={-1}>
+    <mesh position={[0, TUNING.visual.backdropY, -(TUNING.world.pondHeightM * 0.5) - 0.5]} rotation={[TUNING.visual.backdropTilt, 0, 0]} renderOrder={-1}>
       <planeGeometry args={[18, 2.8]} />
       <meshBasicMaterial map={treeline} transparent depthWrite={false} fog={false} />
     </mesh>

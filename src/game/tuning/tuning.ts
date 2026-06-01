@@ -38,7 +38,11 @@ export const TUNING = {
     fishWanderRadiusM: 4.2,
     fishVisualWidthM: 0.9,
     fishVisualHeightM: 0.28,
-    fishCueOpacity: 0.4,
+    // Co-tuned with TUNING.visual.waterDeep/waterShallow: nudged 0.40 -> 0.46 to
+    // recover ~half the silhouette contrast the deepened water costs, so a fish
+    // still reads as a shadow you have to find — neither invisible nor a hard
+    // black blob. The deep/shallow multipliers below keep their depth-fade ratio.
+    fishCueOpacity: 0.46,
     fishCommitOpacity: 0.66,
     fishDeepOpacityMultiplier: 0.62,
     fishShallowOpacityMultiplier: 1.18,
@@ -57,6 +61,34 @@ export const TUNING = {
     fishableMinZ: -3.05,
     fishableMaxZ: 1.2,
     cameraLookAtLerp: 0.08
+  },
+  // Pond visual constants consumed by the WebGL scene (PondWater shader, fog,
+  // backdrop). Deliberately DECOUPLED from the --water-deep/--water-shallow
+  // :root CSS tokens, which still paint the loading screen, result card and
+  // tune page in the original teal — darkening the pond here must NOT darken
+  // those 2D surfaces. Lifted out of GameClient so the /dev gate can tune them.
+  visual: {
+    // Deepened ~halfway from the original #3d6068/#6a958f toward the art-bible
+    // #1a2b30/#2f4948 (08_ART_DIRECTION). Partway, not all the way: at the full
+    // art-bible depth a near-black fish silhouette vanishes. Co-tuned with
+    // world.fishCueOpacity (0.46) for a readable-but-mysterious shadow.
+    waterDeep: '#2b4750',
+    waterShallow: '#4a6f6a',
+    // The void around the pond and the distance fog, pushed toward ink so the
+    // water stops dissolving into a same-colour background. Both were #3d6068
+    // (identical to the old water) — which is exactly why they muddled together.
+    voidColor: '#101c20',
+    fogColor: '#101c20',
+    fogNear: 10,
+    fogFar: 18,
+    // Moonlit caustics: dimmer overall and collapsing under Focus so the busy
+    // light filaments stop competing with fish cues. Strength was a bare 0.5.
+    causticStrength: 0.32,
+    causticFocusMultiplier: 0.35,
+    // Treeline backdrop placement — lifted for /dev tuning, values unchanged.
+    backdropY: 0.8,
+    backdropTilt: 0.12,
+    treelineVisibleTop: 0.4
   },
   input: {
     castPowerMin: 0.05,
