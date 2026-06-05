@@ -116,10 +116,15 @@ export const TUNING = {
     // Accuracy falloff: a short cast lands true; a long cast scatters. The lure
     // is offset from the aim point by a random vector (deterministic per gesture)
     // whose radius grows from castSpreadNearM at the bank to castSpreadFarM at the
-    // far shore. Curve > 1 so close casts stay tight and only long reaches blow out.
-    castSpreadNearM: 0.06,
-    castSpreadFarM: 1.2,
-    castSpreadCurve: 1.7,
+    // far shore. Curve > 1 so close casts stay tight and only long reaches blow
+    // out. Near is near-zero (an exact landing point); far is a wide gamble zone.
+    // castSpreadFarM is the ceiling at reachT=1; the longest cast the pond allows
+    // only reaches reachT ~0.92-0.98, so the felt far ring tops out near ~1.45m.
+    // The aim reticle renders this exact radius as a perspective ellipse on the
+    // water, so what you see is the real landing zone (19_THE_FAR_WATER).
+    castSpreadNearM: 0.04,
+    castSpreadFarM: 1.65,
+    castSpreadCurve: 1.8,
     castFlightTimeMin: 0.5,
     castFlightTimeMax: 1.2,
     castArcHeightM: 1.35,

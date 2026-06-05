@@ -27,6 +27,8 @@ The whole body of water is in play. You can drop a lure just off the bank in fro
 ### 2. Accuracy falloff with distance
 A short cast is precise. A long cast scatters — the intended landing point gets a random offset whose size grows with how far you reach. Near the bank the offset is negligible; at the far shore it is large enough that you are bidding on a *zone*, not a point. **This must read as a designed mechanic, never as a bug:** the aim preview widens with distance so the player *sees* the imprecision before committing, and feels the trade when they choose to reach.
 
+The tell is the **landing-zone reticle** — drawn at the cast's *exact* scatter radius, so what you see is literally where the lure can land (an honest telegraph, not a vague hint). It is a **perspective ellipse lying on the water**, not a flat screen circle: a tight, near-pointlike mark up close, opening into a broad foreshortened ellipse at the far shore. Because a depth offset foreshortens harder than a width offset under this camera, the ellipse flattens the farther you aim — it sits *on* the pond surface, and that flattening is itself a distance cue.
+
 - *Paragraph line:* "The lure dropped near it. Not dead on. Near enough."
 
 ### 3. Visibility falloff with distance

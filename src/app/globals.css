@@ -428,13 +428,15 @@ code {
 }
 
 /* Uncertainty zone where a cast may land — grows with reach so the accuracy
-   falloff reads as a designed mechanic, not a jittery bug (19_THE_FAR_WATER). */
+   falloff reads as a designed mechanic, not a jittery bug. Rendered as a
+   foreshortened ellipse (width != height) so it lies on the water surface
+   rather than floating as a flat screen circle (19_THE_FAR_WATER). */
 .aim-spread-ring {
   position: absolute;
   left: 0;
   top: 0;
   pointer-events: none;
-  border-radius: 999px;
+  border-radius: 50%;
   border: 1.5px dashed rgba(200, 168, 92, 0.5);
   background: radial-gradient(closest-side, rgba(200, 168, 92, 0.1), rgba(200, 168, 92, 0));
 }

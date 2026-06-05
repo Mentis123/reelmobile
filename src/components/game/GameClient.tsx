@@ -117,7 +117,11 @@ type Overlay = {
   rodTip: ScreenPoint;
   lure: ScreenPoint;
   aimTarget: ScreenPoint | null;
-  aimSpreadPx?: number;
+  // Screen-space radii of the landing-zone reticle. rx != ry because the world
+  // circle on the water plane projects to a foreshortened ellipse under the
+  // over-the-water camera — flatter the farther you aim (19_THE_FAR_WATER).
+  aimRingRx?: number;
+  aimRingRy?: number;
 };
 
 type SceneProps = {
@@ -792,14 +796,14 @@ export function GameClient() {
         </svg>
       ) : null}
 
-      {aimPreview && overlay.aimTarget && (overlay.aimSpreadPx ?? 0) > 2 ? (
+      {aimPreview && overlay.aimTarget && (overlay.aimRingRx ?? 0) > 1.5 ? (
         <span
           className="aim-spread-ring"
           aria-hidden="true"
           style={{
             transform: `translate(${overlay.aimTarget.x}px, ${overlay.aimTarget.y}px) translate(-50%, -50%)`,
-            width: `${(overlay.aimSpreadPx ?? 0) * 2}px`,
-            height: `${(overlay.aimSpreadPx ?? 0) * 2}px`
+            width: `${(overlay.aimRingRx ?? 0) * 2}px`,
+            height: `${(overlay.aimRingRy ?? 0) * 2}px`
           }}
         />
       ) : null}
@@ -1397,18 +1401,39 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
     const lureScreen = projectVecToScreen(projVec, camera, size);
 
     let aimTargetScreen: ScreenPoint | null = null;
-    let aimSpreadPx = 0;
+    let aimRingRx = 0;
+    let aimRingRy = 0;
     if (current.aimTarget) {
-      projVec.set(current.aimTarget.x, TUNING.world.lureSurfaceY, current.aimTarget.z);
+      const r = current.aimSpread;
+      const surfaceY = TUNING.world.lureSurfaceY;
+      // Center stays the direct projection of the aim point (keeps the dotted
+      // aim line ending exactly on target). The ring is the real landing disc of
+      // radius r on the water plane: project its four cardinal points and read
+      // the screen half-spans. A Z offset foreshortens far harder than an X
+      // offset under this camera, so rx > ry — the ring reads as an ellipse
+      // lying on the pond, flatter the farther you aim (19_THE_FAR_WATER).
+      projVec.set(current.aimTarget.x, surfaceY, current.aimTarget.z);
       aimTargetScreen = projectVecToScreen(projVec, camera, size);
-      // Project a point one spread-radius away so the ring shows the real
-      // uncertainty zone in screen px — grows with reach, telegraphs the gamble.
-      projVec.set(current.aimTarget.x + current.aimSpread, TUNING.world.lureSurfaceY, current.aimTarget.z);
-      const edge = projectVecToScreen(projVec, camera, size);
-      aimSpreadPx = Math.hypot(edge.x - aimTargetScreen.x, edge.y - aimTargetScreen.y);
+
+      projVec.set(current.aimTarget.x + r, surfaceY, current.aimTarget.z);
+      const east = projectVecToScreen(projVec, camera, size);
+      projVec.set(current.aimTarget.x - r, surfaceY, current.aimTarget.z);
+      const west = projectVecToScreen(projVec, camera, size);
+      projVec.set(current.aimTarget.x, surfaceY, current.aimTarget.z + r);
+      const nearEdge = projectVecToScreen(projVec, camera, size);
+      projVec.set(current.aimTarget.x, surfaceY, current.aimTarget.z - r);
+      const farEdge = projectVecToScreen(projVec, camera, size);
+
+      aimRingRx = (Math.abs(east.x - aimTargetScreen.x) + Math.abs(aimTargetScreen.x - west.x)) * 0.5;
+      const rawRy = (Math.abs(nearEdge.y - aimTargetScreen.y) + Math.abs(aimTargetScreen.y - farEdge.y)) * 0.5;
+      // rawRy is the honest projected z-extent. Floor it only against a truly
+      // degenerate grazing collapse to a line — across the real fishable range
+      // the true ry/rx never drops below ~0.44, so this legibility guard stays
+      // inert and never overstates the actual landing zone.
+      aimRingRy = Math.max(rawRy, aimRingRx * 0.1);
     }
 
-    setOverlay({ linePoints, rodTip: rodTipScreen, lure: lureScreen, aimTarget: aimTargetScreen, aimSpreadPx });
+    setOverlay({ linePoints, rodTip: rodTipScreen, lure: lureScreen, aimTarget: aimTargetScreen, aimRingRx, aimRingRy });
     setRodOffset(current.rodOffset);
     setFishState(current.fish.state);
     setTension(current.tension);
