@@ -391,6 +391,35 @@ export const TUNING = {
     nearSnapThreshold: 0.85,
     splashHighTension: 0.7
   },
+  // Pre-cast gear (22_THE_GEAR): two rods + three lures as sidegrades that deepen
+  // the distance gamble — NOT an upgrade ladder. Every DEFAULT-gear field is 1.0,
+  // so default play is byte-for-byte today's validated feel; the iPhone gate judges
+  // only the deltas. Rods: rangeMult scales how far a full cast throws; accuracyMult
+  // scales the landing-spread (smaller = tighter); lineStrengthMult scales the snap
+  // thresholds (smaller = snaps easier). Lures: attractMult/fearMult scale the fish
+  // notice/fear radii (the two AI levers that decide how cast inaccuracy cashes out);
+  // sinkMult/twitchMult are presentation feel. Canon: 22_THE_GEAR.
+  gear: {
+    defaultRodId: 'long',
+    defaultLureId: 'natural',
+    rods: {
+      // The long rod (default): reaches the far dark, today's exact feel.
+      long: { rangeMult: 1, accuracyMult: 1, lineStrengthMult: 1 },
+      // The short rod: can't reach the dark, lands near-exact, fights on a tight
+      // margin (snaps easier). A deliberate renunciation of the long gamble.
+      short: { rangeMult: 0.6, accuracyMult: 0.5, lineStrengthMult: 0.82 }
+    },
+    lures: {
+      // The natural lure (default): balanced draw and nerve, today's exact feel.
+      natural: { attractMult: 1, fearMult: 1, sinkMult: 1, twitchMult: 1 },
+      // The loud lure: big draw (rescues a loose far cast) paid for with a big fear
+      // radius (spooks easily — twitchy to handle).
+      popper: { attractMult: 1.6, fearMult: 1.5, sinkMult: 0.6, twitchMult: 1.3 },
+      // The quiet lure: won't spook even worked close (small fear) but draws only
+      // from nearby (small attraction) — demands you place it true.
+      sinker: { attractMult: 0.7, fearMult: 0.6, sinkMult: 1.5, twitchMult: 0.85 }
+    }
+  },
   timing: {
     msPerSecond: 1000,
     tapFadeMs: 600,

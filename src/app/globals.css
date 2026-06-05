@@ -572,6 +572,50 @@ code {
   overflow: hidden;
 }
 
+/* Pre-cast gear picker (22_THE_GEAR): minimal, bottom-left, idle-only. No chrome. */
+.gear-select {
+  position: absolute;
+  left: max(12px, env(safe-area-inset-left));
+  bottom: max(16px, calc(env(safe-area-inset-bottom) + 12px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 6;
+  animation: gear-fade-in 280ms ease-out;
+}
+
+.gear-row {
+  display: flex;
+  gap: 8px;
+}
+
+.gear-glyph {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 10px;
+  background: rgba(10, 14, 14, 0.42);
+  border: 1px solid rgba(200, 196, 178, 0.18);
+  color: rgba(200, 196, 178, 0.5);
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gear-glyph.selected {
+  color: var(--moonlight);
+  border-color: rgba(200, 196, 178, 0.6);
+  background: rgba(20, 28, 28, 0.6);
+  box-shadow: inset 0 -2px 0 0 rgba(232, 200, 120, 0.7);
+}
+
+@keyframes gear-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .tension-bar-fill {
   position: absolute;
   left: 0;

@@ -27,6 +27,12 @@ export type FishUpdateInput = {
   lureMoved: boolean;
   hooked: boolean;
   rng: () => number;
+  // Equipped-lure gear scalars (22_THE_GEAR): how far this lure draws a fish
+  // (notice) and how easily it spooks one (fear). Default lure = 1.0 (no-op).
+  // Passed only for the player's primary fish; decor fish get 1.0 (they ignore
+  // the lure entirely).
+  lureAttractMult: number;
+  lureFearMult: number;
 };
 
 export function createInitialFish(seedRand: () => number): FishSnapshot {
@@ -76,7 +82,7 @@ export function updateFish(input: FishUpdateInput, fish: FishSnapshot): FishSnap
 
   if (input.hooked && state.kind !== 'hooked' && state.kind !== 'landed') {
     nextState = { kind: 'hooked', stamina: TUNING.fish.staminaLandThreshold + 0.9, rage: input.rng() };
-  } else if (input.lureMoved && lurePos && shouldSpook(state.kind) && distance(fish.position, lurePos) < fearRadius(fish.instance)) {
+  } else if (input.lureMoved && lurePos && shouldSpook(state.kind) && distance(fish.position, lurePos) < fearRadius(fish.instance, input.lureFearMult)) {
     nextState = { kind: 'flee', targetPos: fleeTarget(fish.position, fish.instance.personality), sinceMs: 0 };
   } else if (state.kind === 'wander') {
     nextState = { ...state, sinceMs: state.sinceMs + dtMs };
@@ -87,7 +93,7 @@ export function updateFish(input: FishUpdateInput, fish: FishSnapshot): FishSnap
       target = nextState.targetPos;
     }
 
-    if (lurePos && distance(fish.position, lurePos) < noticeRadius(fish.instance)) {
+    if (lurePos && distance(fish.position, lurePos) < noticeRadius(fish.instance, input.lureAttractMult)) {
       nextState = { kind: 'notice', lurePos, alertness: fish.instance.personality, sinceMs: 0 };
     }
   } else if (state.kind === 'notice') {
@@ -182,12 +188,12 @@ export function updateFish(input: FishUpdateInput, fish: FishSnapshot): FishSnap
   };
 }
 
-function noticeRadius(instance: FishInstance): number {
-  return TUNING.fish.fishNoticeRadius * speciesTuning(instance.species).noticeRadiusMultiplier * personalityMultiplier(instance.personality);
+function noticeRadius(instance: FishInstance, lureAttractMult = 1): number {
+  return TUNING.fish.fishNoticeRadius * speciesTuning(instance.species).noticeRadiusMultiplier * personalityMultiplier(instance.personality) * lureAttractMult;
 }
 
-function fearRadius(instance: FishInstance): number {
-  return TUNING.fish.fishFearRadius * speciesTuning(instance.species).fearRadiusMultiplier * personalityMultiplier(instance.personality);
+function fearRadius(instance: FishInstance, lureFearMult = 1): number {
+  return TUNING.fish.fishFearRadius * speciesTuning(instance.species).fearRadiusMultiplier * personalityMultiplier(instance.personality) * lureFearMult;
 }
 
 function curiosityForTwitch(lureMoved: boolean, instance: FishInstance): number {

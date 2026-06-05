@@ -10,6 +10,8 @@ import { OfflineStatus } from '@/components/pwa/OfflineStatus';
 import { ProceduralAudio } from '@/game/audio/procedural';
 import { createInitialFish, type FishSnapshot, updateFish } from '@/game/fish/fishStateMachine';
 import { cueForReveal, speciesTuning, SPECIES_IDS, type FishCueKind, type SpeciesId } from '@/game/fish/species';
+import { DEFAULT_LURE_ID, DEFAULT_ROD_ID, LURE_IDS, lureMods, ROD_IDS, rodMods, ROD_LABELS, LURE_LABELS, type LureId, type RodId } from '@/game/gear/gear';
+import { getGear, setGear, type GearSelection } from '@/game/persistence/gearStore';
 import { add, clamp, clampToPond, distance, lerp, lerpVec, normalize, scale, seededRandom, sub, type Vec2 } from '@/game/math/vec';
 import { createId, dailySeed, type Catch, type Failure, useSessionStore } from '@/game/persistence/sessionStore';
 import { createVerletLine, type VerletLine, updateVerletLine } from '@/game/physics/verletLine';
@@ -42,6 +44,10 @@ type DecorFish = {
 type Runtime = {
   state: GameState;
   fish: FishSnapshot;
+  // Equipped gear ids (22_THE_GEAR), stamped onto the runtime so the per-frame
+  // fight/lure/fish code resolves the same loadout the player chose pre-cast.
+  rodId: RodId;
+  lureId: LureId;
   fishFadePhase: number;
   fishFadePeriodMs: number;
   decorFish: DecorFish[];
@@ -187,16 +193,40 @@ export function GameClient() {
 
   const runtime = useRef<Runtime>(createRuntime(seed));
 
+  // Pre-cast gear (22_THE_GEAR). gearRef is the always-current selection the
+  // runtime + cast closures read; `gear` drives the picker UI. Saved gear loads on
+  // mount (client-only — avoids a hydration mismatch) and is re-stamped onto the
+  // runtime after every reset so a fresh cast keeps the chosen loadout.
+  const gearRef = useRef<GearSelection>({ rodId: DEFAULT_ROD_ID, lureId: DEFAULT_LURE_ID });
+  const [gear, setGearState] = useState<GearSelection>({ rodId: DEFAULT_ROD_ID, lureId: DEFAULT_LURE_ID });
+  const stampGear = useCallback(() => {
+    runtime.current.rodId = gearRef.current.rodId;
+    runtime.current.lureId = gearRef.current.lureId;
+  }, []);
+  useEffect(() => {
+    const saved = getGear();
+    gearRef.current = saved;
+    setGearState(saved);
+    stampGear();
+  }, [stampGear]);
+  const applyGear = useCallback((next: GearSelection) => {
+    gearRef.current = next;
+    setGearState(next);
+    setGear(next);
+    stampGear();
+  }, [stampGear]);
+
   useEffect(() => {
     spawnIndexRef.current = 0;
     runtime.current = createRuntime(seed);
+    stampGear();
     startedRef.current = false;
     setStarted(false);
     setSplashStage('primary');
     setSeed(seed);
     setGameState({ kind: 'splash' });
     setFishState(runtime.current.fish.state);
-  }, [seed, setFishState, setGameState, setSeed]);
+  }, [seed, setFishState, setGameState, setSeed, stampGear]);
 
   useEffect(() => {
     return () => {
@@ -214,7 +244,7 @@ export function GameClient() {
     }
 
     const preventTouch = (event: TouchEvent) => {
-      if (event.target instanceof Element && event.target.closest('[data-testid="tap-to-begin"], [data-testid="result-card"]')) {
+      if (event.target instanceof Element && event.target.closest('[data-testid="tap-to-begin"], [data-testid="result-card"], [data-testid="gear-select"]')) {
         return;
       }
 
@@ -295,7 +325,9 @@ export function GameClient() {
         at: now,
         species: runtime.current.fish.instance.species,
         sizeScore: clamp(peakTension, TUNING.fish.catchMinSizeScore, TUNING.fish.catchMaxSizeScore),
-        lure: 'default',
+        // The lure this fish was actually caught on (22_THE_GEAR) — a flat journal
+        // attribute, never a coverage/completion grid (14_DO_NOT_BUILD).
+        lure: runtime.current.lureId,
         durationMs: now - hookedAt,
         peakTension,
         nearSnaps,
@@ -341,6 +373,8 @@ export function GameClient() {
     spawnIndexRef.current += 1;
     const nextRuntime = createRuntime(seed, spawnIndexRef.current);
     nextRuntime.state = { kind: 'scouting', sinceMs: performance.now() };
+    nextRuntime.rodId = gearRef.current.rodId;
+    nextRuntime.lureId = gearRef.current.lureId;
     runtime.current = nextRuntime;
     setOverlay({ linePoints: [], rodTip: { x: 0, y: 0 }, lure: { x: 0, y: 0 }, aimTarget: null });
     setRipples([]);
@@ -644,12 +678,16 @@ export function GameClient() {
     }
 
     const now = performance.now();
+    // Lure gear (22_THE_GEAR): twitchMult scales the hop distance only (presentation
+    // feel). Applied here at the hop sites, NOT to the rod-control deadband, which
+    // shares lureTwitchDistanceM but is unrelated handling.
+    const twitchMult = lureMods(runtime.current.lureId).twitchMult;
     runtime.current.lastTwitchAt = now;
     runtime.current.lureMovedUntil = now + TUNING.lure.lureTwitchDurationMs;
     runtime.current.lureFlashUntil = now + TUNING.lure.lureFlashDurationMs;
     runtime.current.lurePos = clampToFishableWater({
-      x: runtime.current.lurePos.x + (runtime.current.rng() - TUNING.lure.lureTwitchSidewaysRatio) * TUNING.lure.lureTwitchDistanceM,
-      z: runtime.current.lurePos.z + TUNING.lure.lureTwitchDistanceM
+      x: runtime.current.lurePos.x + (runtime.current.rng() - TUNING.lure.lureTwitchSidewaysRatio) * TUNING.lure.lureTwitchDistanceM * twitchMult,
+      z: runtime.current.lurePos.z + TUNING.lure.lureTwitchDistanceM * twitchMult
     });
     runtime.current.lureVelocity = { x: 0, z: 0 };
     runtime.current.state = { kind: 'lure_idle', lurePos: runtime.current.lurePos, sinceMs: now, lastTwitchAt: now };
@@ -699,7 +737,12 @@ export function GameClient() {
     });
   }, [aimPreview, overlay.aimTarget, overlay.rodTip]);
 
-  const lineColor = tension > TUNING.tension.nearSnapThreshold
+  // The equipped rod's line strength scales the snap thresholds (22_THE_GEAR): the
+  // short rod snaps easier, so the "near snap" warning visuals must fire at its
+  // lower effective threshold too — not the raw constant — or the red warning lies.
+  // updateFight() applies the same scalar to the snap LOGIC. Default rod = 1.0.
+  const effNearSnapThreshold = TUNING.tension.nearSnapThreshold * rodMods(gear.rodId).lineStrengthMult;
+  const lineColor = tension > effNearSnapThreshold
     ? TUNING.line.lineSnapColour
     : tension >= TUNING.tension.tensionSweetSpotMin
       ? TUNING.line.lineTautColour
@@ -707,7 +750,7 @@ export function GameClient() {
   const hookImpulse = gameState.kind === 'hooked'
     ? Math.max(0, 1 - (Date.now() - gameState.hookedAt) / TUNING.timing.hookJerkMs)
     : 0;
-  const lineWidth = (tension > TUNING.tension.nearSnapThreshold
+  const lineWidth = (tension > effNearSnapThreshold
     ? TUNING.line.lineSnapWidthPx
     : tension >= TUNING.tension.tensionSweetSpotMin
       ? TUNING.line.lineTautWidthPx
@@ -870,7 +913,7 @@ export function GameClient() {
         <div className="tension-bar" aria-hidden="true">
           <div
             className="tension-bar-mark danger"
-            style={{ bottom: `${TUNING.tension.nearSnapThreshold * 100}%` }}
+            style={{ bottom: `${effNearSnapThreshold * 100}%` }}
           />
           <div
             className="tension-bar-mark"
@@ -881,6 +924,10 @@ export function GameClient() {
             style={{ height: `${Math.min(1, Math.max(0, tension)) * 100}%` }}
           />
         </div>
+      ) : null}
+
+      {started && gameState.kind === 'scouting' ? (
+        <GearSelect gear={gear} onSelect={applyGear} />
       ) : null}
 
       {started ? null : splashStage === 'primary' ? (
@@ -990,10 +1037,18 @@ export function GameClient() {
       x: rawDirection.x,
       z: Math.min(rawDirection.z, 0)
     };
+    // Rod gear (22_THE_GEAR): rangeMult scales how far a full cast throws (the short
+    // rod literally can't reach the far dark); accuracyMult scales the landing
+    // spread below. reachT deliberately stays on the GLOBAL castMaxRangeM so spread
+    // reads as f(physical reach) — a short rod confined to near water is tight, and
+    // accuracyMult tightens it further; it does NOT make the short rod scatter more
+    // per metre. Both scatter and the aim reticle read the one spreadRadius below.
+    const rod = rodMods(gearRef.current.rodId);
+    const effMaxRange = TUNING.input.castMaxRangeM * rod.rangeMult;
     const target = clampToPond(
       {
-        x: TUNING.world.rodTip.x + direction.x * power * TUNING.input.castMaxRangeM,
-        z: TUNING.world.rodTip.z + direction.z * power * TUNING.input.castMaxRangeM
+        x: TUNING.world.rodTip.x + direction.x * power * effMaxRange,
+        z: TUNING.world.rodTip.z + direction.z * power * effMaxRange
       },
       TUNING.world.pondWidthM,
       TUNING.world.pondHeightM,
@@ -1014,7 +1069,7 @@ export function GameClient() {
       TUNING.input.castSpreadNearM,
       TUNING.input.castSpreadFarM,
       Math.pow(reachT, TUNING.input.castSpreadCurve)
-    );
+    ) * rod.accuracyMult;
     const hash = (n: number) => {
       const s = Math.sin(n) * 43758.5453;
       return s - Math.floor(s);
@@ -1166,7 +1221,7 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
         setGameState(current.state);
       }
     } else if (gameState.kind === 'lure_idle' || gameState.kind === 'rod_control') {
-      current.lureY = Math.max(TUNING.world.lureSinkDepthY, current.lureY - TUNING.lure.lureSinkRate * dt);
+      current.lureY = Math.max(TUNING.world.lureSinkDepthY, current.lureY - TUNING.lure.lureSinkRate * lureMods(current.lureId).sinkMult * dt);
       updateRodControl(current, dt);
       if (gameState.kind === 'rod_control') {
         current.state = { ...gameState, lurePos: current.lurePos, load: current.tension };
@@ -1264,13 +1319,17 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
     }
 
     const previousFishKind: string = current.fish.state.kind;
+    const equippedLure = lureMods(current.lureId);
     current.fish = updateFish({
       nowMs: now,
       dt,
       lurePos: current.lureVisible ? current.lurePos : null,
       lureMoved: now < current.lureMovedUntil,
       hooked: current.state.kind === 'hooked',
-      rng: current.rng
+      rng: current.rng,
+      // The equipped lure draws/spooks only the player's primary fish.
+      lureAttractMult: equippedLure.attractMult,
+      lureFearMult: equippedLure.fearMult
     }, current.fish);
     updateHookedContactPoint(current, dt);
 
@@ -1321,7 +1380,10 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
         lurePos: null,
         lureMoved: false,
         hooked: false,
-        rng: current.rng
+        rng: current.rng,
+        // Decor fish ignore the lure entirely — neutral gear (no draw/spook).
+        lureAttractMult: 1,
+        lureFearMult: 1
       }, decor.snapshot);
 
       // Alive pond: every fish — not just the catchable one — leaves the odd cue
@@ -2247,6 +2309,10 @@ function createRuntime(seed: string, spawnIndex = 0): Runtime {
   return {
     state: { kind: 'splash' },
     fish,
+    // Default loadout; the component re-stamps the player's saved gear onto the
+    // runtime after each createRuntime call (stampGear) so a reset keeps it.
+    rodId: DEFAULT_ROD_ID,
+    lureId: DEFAULT_LURE_ID,
     fishFadePhase: rng() * Math.PI * 2,
     fishFadePeriodMs: lerp(TUNING.world.fishFadeMinPeriodMs, TUNING.world.fishFadeMaxPeriodMs, rng()),
     decorFish,
@@ -2339,12 +2405,19 @@ function updateFight(runtime: Runtime, dt: number, onResult: SceneProps['onResul
     return;
   }
 
-  if (runtime.tension > TUNING.tension.nearSnapThreshold) {
+  // Rod line strength (22_THE_GEAR): the short rod's lower scalar pulls both snap
+  // thresholds down so it snaps (and warns) earlier. Matches the render-side
+  // effNearSnapThreshold so the warning visual and the actual snap agree. 1.0 default.
+  const lineStrengthMult = rodMods(runtime.rodId).lineStrengthMult;
+  const effNearSnap = TUNING.tension.nearSnapThreshold * lineStrengthMult;
+  const effLineSnap = TUNING.tension.lineSnapThreshold * lineStrengthMult;
+
+  if (runtime.tension > effNearSnap) {
     runtime.state = { ...runtime.state, nearSnaps: runtime.state.nearSnaps + 1 };
     audio.fishSplash(TUNING.audio.struggleSplashIntensity);
   }
 
-  if (runtime.tension > TUNING.tension.lineSnapThreshold) {
+  if (runtime.tension > effLineSnap) {
     audio.lineSnap();
     navigator.vibrate?.(TUNING.haptics.lineSnap);
     onResult('snap', runtime.state.peakTension, runtime.state.nearSnaps, runtime.state.hookedAt);
@@ -2723,6 +2796,74 @@ function createSpeciesSilhouettes(): Map<SpeciesId, THREE.CanvasTexture> {
   }
 
   return map;
+}
+
+function rodGlyph(id: RodId) {
+  // The glyph IS the cast curve (22_THE_GEAR): a long shallow arc that reaches, vs
+  // a short steep arc that lands near. No skeuomorphic rod imagery.
+  const path = id === 'long' ? 'M3 19 Q14 9 25 16' : 'M8 20 Q13 7 18 18';
+  return (
+    <svg viewBox="0 0 28 28" width="24" height="24" aria-hidden="true">
+      <path d={path} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function lureGlyph(id: LureId) {
+  // Abstract procedural marks (moonlit palette), not tackle imagery (14_DO_NOT_BUILD).
+  return (
+    <svg viewBox="0 0 28 28" width="24" height="24" aria-hidden="true">
+      {id === 'natural' ? (
+        <ellipse cx="14" cy="14" rx="8" ry="3.4" fill="currentColor" />
+      ) : id === 'popper' ? (
+        <g fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+          <circle cx="14" cy="14" r="2.2" fill="currentColor" stroke="none" />
+          <path d="M7 14a7 7 0 0 1 14 0" />
+          <path d="M4 14a10 10 0 0 1 20 0" opacity="0.55" />
+        </g>
+      ) : (
+        <path d="M14 6 C18 12 18 18 14 22 C10 18 10 12 14 6 Z" fill="currentColor" />
+      )}
+    </svg>
+  );
+}
+
+function GearSelect({ gear, onSelect }: { gear: GearSelection; onSelect: (next: GearSelection) => void }) {
+  // Minimal pre-cast picker (22_THE_GEAR): idle-only, no chrome, no modal, no labels.
+  return (
+    <div className="gear-select" data-testid="gear-select">
+      <div className="gear-row" role="group" aria-label="Rod">
+        {ROD_IDS.map((id) => (
+          <button
+            key={id}
+            type="button"
+            className={`gear-glyph${gear.rodId === id ? ' selected' : ''}`}
+            aria-pressed={gear.rodId === id}
+            aria-label={ROD_LABELS[id]}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => onSelect({ ...gear, rodId: id })}
+          >
+            {rodGlyph(id)}
+          </button>
+        ))}
+      </div>
+      <div className="gear-row" role="group" aria-label="Lure">
+        {LURE_IDS.map((id) => (
+          <button
+            key={id}
+            type="button"
+            className={`gear-glyph${gear.lureId === id ? ' selected' : ''}`}
+            aria-pressed={gear.lureId === id}
+            aria-label={LURE_LABELS[id]}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => onSelect({ ...gear, lureId: id })}
+          >
+            {lureGlyph(id)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function createGenericSilhouette(): THREE.CanvasTexture | null {

@@ -32,7 +32,7 @@ export default function CaughtPreviewPage() {
           const result: ResultCatch = {
             species,
             sizeScore: sample.sizeScore,
-            lure: 'default',
+            lure: 'natural',
             durationMs: sample.durationMs,
             nearSnaps: sample.nearSnaps,
             peakTension: sample.sizeScore

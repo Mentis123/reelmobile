@@ -638,3 +638,20 @@ Append after every milestone. Format:
 **Alive pond (companion to the nearest-fish-catchable fix):** every decor fish now emits its own cues (`decorCueMinMs`..`decorCueMaxMs`), far ones generic via the same `cueForReveal`. The expanse reads populated and each shadow is a real fish you could cast at — none betraying identity at distance.
 
 **New constants** (`TUNING.fish`): `cueSpeciesRevealThreshold`, `genericCueRadiusM`, `decorCueMinMs`, `decorCueMaxMs`. Canon updated (`21_THE_REVEAL` v2 + alive-pond sections). Feel gates left for the iPhone: the crossfade band/curve and pond cue density.
+
+## v0.8 — Gear (Chapter 8) (2026-06-06)
+*Two rods + three lures as pre-cast sidegrades that deepen the distance gamble, never an upgrade ladder. Canon written first (`22_THE_GEAR`); approach de-risked by an ultracode panel (integration scout + canon adversary + independent designer) before any code.*
+
+**Design (synthesized from the panel):**
+- **Rods — baseline + specialist.** The **long rod** (default) reaches the far dark and is today's exact feel (all multipliers 1.0) — keeping it default protects the per-cast gamble (the canon adversary's call: a two-specialist scheme would trap players into a rod that can't reach the dark). The **short rod** can't reach the dark, lands near-exact, and fights on a tight margin (snaps easier) — a deliberate renunciation of the gamble. Took the independent designer's framing: precision and forgiveness are SPLIT across the rods (short = precise but fragile), so neither is strictly better.
+- **Lures — each tied to how it converts cast inaccuracy into outcome** (not an orthogonal depth axis). **Natural** (default). **Popper**: big attraction (rescues a loose far cast) paid for with a big fear radius (spooks easily). **Sinker**: small fear (won't spook worked-close) paid for with small attraction (demands an accurate cast). Fear-as-lure-property is sanctioned explicitly in `22_THE_GEAR` (the fear mechanic pre-exists; the amendment blesses lures leaning on it — not smuggled).
+
+**Build, against the scout's seam map:**
+- New `TUNING.gear` (rod/lure multiplier tables, every default field 1.0), `src/game/gear/gear.ts` (ids/labels/resolvers), `src/game/persistence/gearStore.ts` (localStorage `reelmobile.gear.v1`, SSR-guarded).
+- Rod range+accuracy in `computeCast`: `effMaxRange = castMaxRangeM * rangeMult` (projection only); `reachT` deliberately stays on the GLOBAL max so spread reads as f(physical reach) and `accuracyMult` tightens uniformly — the short rod is precise because it's confined to the tight near band, not because reachT was rescaled (which would perversely scatter it more per metre). Reticle stays honest automatically (single shared `spreadRadius`).
+- Tension: `lineStrengthMult` scales BOTH the snap logic (`updateFight`) and the render-side warning (`effNearSnapThreshold` drives line colour/width + the danger bar) — the scout's flagged trap (a logic-only change makes the red warning lie).
+- Lure sink/twitch (local reads only, not the rod-control deadband), and fish attraction/fear crossing into `fishStateMachine` via new `FishUpdateInput` fields applied to the **primary fish only** (decor pass 1.0, so ambient fish keep ignoring the lure).
+- `ResultCatch.lure` now carries the equipped lure id (was hardcoded `'default'`) — a flat journal attribute, never a coverage grid.
+- Minimal pre-cast `<GearSelect>`: a bottom-left glyph strip (rod glyphs drawn as the cast-curve profile; abstract lure marks), idle-only, persisted. No skeuomorphic chrome, no modal, no labels.
+
+**Guardrails banked in `22_THE_GEAR`:** never a 3rd rod/4th lure, no tiers/XP/currency/unlocks, tension tolerance stays a fixed rod property (NOT adjustable reel-drag, `14_DO_NOT_BUILD` L99), lure/rod stays a flat journal attribute (no completion grid). Default gear = byte-for-byte today's feel, so the iPhone gate judges only the deltas. Feel gates: short-rod range cap + accuracy/snap deltas, loud-lure draw-vs-spook, quiet-lure draw floor.
