@@ -599,3 +599,19 @@ Append after every milestone. Format:
 - **Ultracode verification — four independent adversarial lenses** over the diff (perspective math, telegraph truthfulness, regression, tuning feel). The math lens numerically reproduced the projection against the real camera: ry/rx monotonically flattens with distance, no Z sign error, the shared `projVec` reuse is safe (set→project→capture), no NaN/behind-camera case in range. Regression lens: no dangling `aimSpreadPx`, aim-line endpoint intact, ellipse CSS correct. Two lenses caught honest calibration gaps — **both fixed**:
   - The `ry` line-collapse floor lowered `0.2 → 0.1`. It never fires in the playable range anyway (true ry/rx ≥ 0.44), so this just makes the guard strictly more honest where it ever would.
   - `castSpreadFarM` lifted to 1.65 because the pond geometry caps real reach at reachT ~0.92–0.98 (the far shore is closer than `castMaxRangeM`). The felt far ring now lands ~1.45m (~45% of the visible cone — the intended wide gamble) instead of chasing an unreachable 1.5m ceiling.
+
+**Slice — the Caught screen becomes a trophy + real fish art:**
+- Early testers found the catch a letdown — landing a fought fish collapsed to one line of prose. Rebuilt the result screen as a **trophy**: a hero fish + `Landed / <Species> / <length> cm · <size word> / <fight>`, arriving with a rise + glow. New `<CatchResultCard>`/`<FishPortrait>`; the result state now carries the catch (species/size/fight) instead of discarding it; new `trophy.ts` derives a believable length and a procedural moonlit fish as the always-present fallback.
+- **Real art wired in.** The owner generated 5 hero plates (Grok); processed each into a **feathered elliptical alpha** WebP (oval — hides the four corners and the corner watermark for free, 25–42 KB), `SPECIES_ART` → `/assets/fish/<species>.webp`. New `/dev/caught` gallery to preview all five.
+
+## v0.5/v0.6 — The Catch arc (Journal + Share) (2026-06-05)
+*Two chapters from `20_ROADMAP`, building straight on the trophy art. Pushed to main as slices (still gating the whole far-water candidate on the iPhone).*
+
+**Chapter 6 — Journal (cross-session history):**
+- New `catchJournal.ts` — append-only localStorage journal (`reelmobile.journal.v1`, canon schema in `15_TELEMETRY_AND_SESSION`), SSR-guarded, schema-validated, dedupe-by-id, capped at 500 (oldest roll off). Hooked into `sessionStore.recordCatch/startSession/recordCast`.
+- New `/journal` route — every catch, newest first, each with its trophy `<FishPortrait>`, length, size, fight, and date; totals header; empty state. localStorage read in `useEffect` (no hydration mismatch). "View journal →" link added to the Caught card.
+
+**Chapter 7 — Share (catch card):**
+- New `catchCard.ts` — composites a 1080×1350 PNG (the trophy art + `LANDED`/species/length/fight + `REEL MOBILE` footer) on the same moonlit gradient as the in-game card. New `shareCatch.ts` — `navigator.share({files})` where supported (iOS/Android), else downloads the PNG; AbortError (user cancels the sheet) counts as success. Share button on the Caught card; new `/dev/share` preview of all five cards.
+
+**Ultracode verification — four lenses (persistence/SSR, journal UI, share/canvas, regression/build):** three clean; the build lens ran the full pipeline (tsc + lint + `next build`) green across all 10 routes. One minor finding fixed: the journal grew unbounded — added the 500-cap so the per-write payload and the `/journal` render stay cheap.

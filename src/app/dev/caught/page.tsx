@@ -20,8 +20,10 @@ export default function CaughtPreviewPage() {
     <main className="caught-preview">
       <header className="caught-preview-head">
         <h1>Caught screen — trophy preview</h1>
-        <p>Procedural moonlit trophies, all five species. Generated art (when added) swaps into the same slot.</p>
-        <Link href="/dev">← back to /dev</Link>
+        <p>Generated hero art per species (procedural draw is the fallback). All five, on the real card layout.</p>
+        <p className="caught-preview-nav">
+          <Link href="/dev">← /dev</Link> · <Link href="/journal">journal</Link> · <Link href="/dev/share">share cards</Link>
+        </p>
       </header>
 
       <div className="caught-preview-grid">

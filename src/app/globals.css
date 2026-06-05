@@ -822,6 +822,160 @@ code {
   margin: 0 auto;
 }
 
+.caught-preview-nav {
+  font-size: 0.82rem;
+  opacity: 0.8;
+}
+
+.caught-preview-nav a {
+  color: rgba(200, 168, 92, 0.9);
+}
+
+/* Caught-screen actions: cast again + share, with a journal link beneath. */
+.result-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+}
+
+.result-share {
+  min-width: 120px;
+  padding: 0 16px;
+  background: transparent;
+  border: 1px solid rgba(200, 168, 92, 0.5);
+  color: rgba(232, 238, 243, 0.92);
+}
+
+.result-share:disabled {
+  opacity: 0.6;
+}
+
+.result-journal-link {
+  margin-top: 12px;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  color: rgba(200, 168, 92, 0.82);
+  text-decoration: none;
+}
+
+/* The journal — every catch kept, with its trophy. (Chapter 6 / 20_ROADMAP.) */
+.journal {
+  min-height: 100dvh;
+  padding: max(28px, env(safe-area-inset-top)) 18px max(40px, env(safe-area-inset-bottom));
+  background: #0a1014;
+  color: var(--moonlight);
+}
+
+.journal-head {
+  max-width: 560px;
+  margin: 0 auto 18px;
+  text-align: center;
+}
+
+.journal-head h1 {
+  margin: 0 0 4px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.6rem;
+}
+
+.journal-totals {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  opacity: 0.7;
+}
+
+.journal-back {
+  font-size: 0.85rem;
+  color: rgba(200, 168, 92, 0.9);
+  text-decoration: none;
+}
+
+.journal-empty {
+  max-width: 560px;
+  margin: 14vh auto 0;
+  text-align: center;
+}
+
+.journal-empty p {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.3rem;
+}
+
+.journal-empty-sub {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.journal-cta {
+  display: inline-block;
+  margin-top: 16px;
+  color: rgba(200, 168, 92, 0.92);
+  text-decoration: none;
+}
+
+.journal-list {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.journal-entry {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(205, 216, 224, 0.08);
+}
+
+.journal-entry-fish {
+  width: 116px;
+  height: 70px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+}
+
+.journal-entry-fish .fish-portrait {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.journal-entry-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.journal-entry-name {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.journal-entry-meta {
+  margin: 2px 0 0;
+  font-size: 0.92rem;
+}
+
+.journal-entry-fight {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.journal-entry-when {
+  margin: 2px 0 0;
+  font-size: 0.72rem;
+  opacity: 0.45;
+}
+
 .tune-page {
   min-height: 100dvh;
   padding: max(18px, env(safe-area-inset-top)) 14px max(18px, env(safe-area-inset-bottom));

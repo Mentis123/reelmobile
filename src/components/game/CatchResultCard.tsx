@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
 import type { FailureKind, ResultCatch } from '@/game/state/gameStateMachine';
 import { SPECIES_IDS, type SpeciesId } from '@/game/fish/species';
 import {
@@ -10,6 +11,7 @@ import {
   trophyLengthCm,
   trophySizeWord
 } from '@/game/fish/trophy';
+import { shareCatch } from '@/game/share/shareCatch';
 
 const LURE_LABELS: Record<string, string> = {
   default: 'moss-green lure'
@@ -79,6 +81,19 @@ export function CatchResultCard({
 
   const showTrophy = outcome === 'catch' && result && isKnownSpecies(result.species);
 
+  const [shareState, setShareState] = useState<'idle' | 'working' | 'shared' | 'downloaded' | 'failed'>('idle');
+  const shareLabel =
+    shareState === 'working' ? 'Sharing…'
+    : shareState === 'shared' ? 'Shared ✓'
+    : shareState === 'downloaded' ? 'Saved ✓'
+    : shareState === 'failed' ? 'Try again'
+    : 'Share';
+  const handleShare = async () => {
+    if (!result || shareState === 'working') return;
+    setShareState('working');
+    setShareState(await shareCatch(result));
+  };
+
   return (
     <section className={classes} data-testid="result-card" onPointerDown={stop}>
       {showTrophy && result ? (
@@ -97,17 +112,35 @@ export function CatchResultCard({
       ) : (
         <p className="result-miss-text">{storyText}</p>
       )}
-      <button
-        type="button"
-        className="result-cast-again"
-        disabled={!dismissReady}
-        onPointerDown={stop}
-        onClick={() => {
-          if (dismissReady) onCastAgain?.();
-        }}
-      >
-        Cast again.
-      </button>
+      <div className="result-actions">
+        <button
+          type="button"
+          className="result-cast-again"
+          disabled={!dismissReady}
+          onPointerDown={stop}
+          onClick={() => {
+            if (dismissReady) onCastAgain?.();
+          }}
+        >
+          Cast again.
+        </button>
+        {showTrophy ? (
+          <button
+            type="button"
+            className="result-share"
+            onPointerDown={stop}
+            onClick={handleShare}
+            disabled={shareState === 'working'}
+          >
+            {shareLabel}
+          </button>
+        ) : null}
+      </div>
+      {showTrophy ? (
+        <Link href="/journal" className="result-journal-link" onPointerDown={stop}>
+          View journal →
+        </Link>
+      ) : null}
     </section>
   );
 }

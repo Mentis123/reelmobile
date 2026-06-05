@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import type { FailureKind } from '@/game/state/gameStateMachine';
 import { TUNING } from '@/game/tuning/tuning';
+import { appendCatchToJournal, noteJournalCast, noteJournalSessionStart } from '@/game/persistence/catchJournal';
 
 export type Catch = {
   id: string;
@@ -70,12 +71,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   startSession: (seed) => {
     const session = createSession(seed);
     set({ session });
+    noteJournalSessionStart();
     return session;
   },
   recordCast: () => {
     const session = get().session;
     if (session) {
       set({ session: { ...session, casts: session.casts + 1 } });
+      noteJournalCast();
     }
   },
   recordCatch: (catchEntry) => {
@@ -83,6 +86,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (session) {
       set({ session: { ...session, catches: [...session.catches, catchEntry] } });
     }
+    // Persist to the cross-session journal regardless of an active session.
+    appendCatchToJournal(catchEntry);
   },
   recordFailure: (failure) => {
     const session = get().session;
