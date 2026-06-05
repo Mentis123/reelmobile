@@ -52,8 +52,9 @@ export default function CatchDetailPage() {
         outcome="catch"
         result={state.result}
         storyText=""
-        castAgainLabel="Back to the pond"
-        onCastAgain={() => router.push('/game')}
+        castAgainLabel="← Back to journal"
+        onCastAgain={() => router.push('/journal')}
+        journalLink={null}
       />
     </main>
   );

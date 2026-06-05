@@ -56,7 +56,7 @@ export default function JournalPage() {
             {catches.length} landed · {speciesCount} {speciesCount === 1 ? 'kind' : 'kinds'}
           </p>
         ) : null}
-        <Link href="/game" className="journal-back">← Back to the pond</Link>
+        <Link href="/game" className="journal-back">Cast a line →</Link>
       </header>
 
       {catches.length === 0 ? (

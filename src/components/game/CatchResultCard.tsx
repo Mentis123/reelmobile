@@ -64,6 +64,9 @@ type CatchResultCardProps = {
   dismissReady?: boolean;
   onCastAgain?: () => void;
   castAgainLabel?: string;
+  // The secondary nav link under the buttons. Defaults to "View journal" for the
+  // in-game result; pass null to hide it (e.g. on the journal's own catch page).
+  journalLink?: { label: string; href: string } | null;
   className?: string;
   inline?: boolean;
 };
@@ -75,6 +78,7 @@ export function CatchResultCard({
   dismissReady = true,
   onCastAgain,
   castAgainLabel = 'Cast again.',
+  journalLink = { label: 'View journal →', href: '/journal' },
   className,
   inline = false
 }: CatchResultCardProps) {
@@ -138,9 +142,9 @@ export function CatchResultCard({
           </button>
         ) : null}
       </div>
-      {showTrophy ? (
-        <Link href="/journal" className="result-journal-link" onPointerDown={stop}>
-          View journal →
+      {showTrophy && journalLink ? (
+        <Link href={journalLink.href} className="result-journal-link" onPointerDown={stop}>
+          {journalLink.label}
         </Link>
       ) : null}
     </section>
