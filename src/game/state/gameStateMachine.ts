@@ -2,6 +2,18 @@ import type { Vec2 } from '@/game/math/vec';
 
 export type FailureKind = 'missed_early' | 'missed_late' | 'snap' | 'escape' | 'no_bite';
 
+// The catch data surfaced on the result ("Caught") screen — the trophy. Carried on
+// the result state so the screen can show the fish, its size, and the fight instead
+// of a single line of prose.
+export type ResultCatch = {
+  species: string;
+  sizeScore: number;
+  lure: string;
+  durationMs: number;
+  nearSnaps: number;
+  peakTension: number;
+};
+
 export type GameState =
   | { kind: 'splash' }
   | { kind: 'scouting'; sinceMs: number }
@@ -11,7 +23,7 @@ export type GameState =
   | { kind: 'rod_control'; lurePos: Vec2; sinceMs: number; load: number }
   | { kind: 'bite_window'; openedAt: number; closesAt: number; lurePos: Vec2 }
   | { kind: 'hooked'; hookedAt: number; stamina: number; slackMs: number; nearSnaps: number; peakTension: number }
-  | { kind: 'result'; outcome: 'catch' | FailureKind; storyText: string; shownAt: number; peakTension: number };
+  | { kind: 'result'; outcome: 'catch' | FailureKind; storyText: string; shownAt: number; peakTension: number; catch?: ResultCatch };
 
 export function stateLabel(state: GameState): string {
   return state.kind;

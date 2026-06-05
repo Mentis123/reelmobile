@@ -655,8 +655,7 @@ code {
   pointer-events: none;
 }
 
-.restore-overlay,
-.result-card {
+.restore-overlay {
   position: absolute;
   inset: 0;
   display: grid;
@@ -667,14 +666,77 @@ code {
   text-align: center;
 }
 
+/* The "Caught" screen — the trophy. A moonlit fish, named, sized, the fight
+   recounted, arriving with a soft rise + glow. (Chapter 5 / 20_ROADMAP.) */
 .result-card {
-  align-content: center;
-  gap: 18px;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+  background: radial-gradient(120% 80% at 50% 38%, rgba(20, 32, 38, 0.86), rgba(0, 0, 0, 0.9));
+  color: var(--moonlight);
+  text-align: center;
+  animation: result-rise 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.result-card p {
-  width: min(100%, 360px);
+.result-trophy {
+  width: min(74vw, 320px);
+  height: min(42vw, 188px);
+  margin-bottom: 4px;
+  display: grid;
+  place-items: center;
+  animation: trophy-glow 4.5s ease-in-out infinite;
+}
+
+.fish-portrait {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.55));
+}
+
+.result-eyebrow {
   margin: 0;
+  font-size: 0.74rem;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: rgba(200, 168, 92, 0.85);
+}
+
+.result-headline {
+  margin: 2px 0 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.result-meta {
+  margin: 5px 0 0;
+  font-size: 1.05rem;
+}
+
+.result-fight {
+  margin: 3px 0 0;
+  font-size: 0.9rem;
+  opacity: 0.72;
+}
+
+.result-lure {
+  margin: 3px 0 16px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-size: 0.95rem;
+  opacity: 0.6;
+}
+
+.result-miss-text {
+  width: min(100%, 360px);
+  margin: 0 0 18px;
   white-space: pre-line;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 1.28rem;
@@ -682,13 +744,82 @@ code {
   line-height: 1.4;
 }
 
-.result-card button {
-  min-width: 140px;
-  padding: 0 16px;
+.result-card button,
+.result-cast-again {
+  min-width: 150px;
+  padding: 0 18px;
 }
 
-.result-card button:disabled {
+.result-cast-again:disabled {
   opacity: 0.45;
+}
+
+@keyframes result-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes trophy-glow {
+  0%, 100% {
+    filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.55));
+  }
+  50% {
+    filter: drop-shadow(0 0 18px rgba(205, 216, 224, 0.22));
+  }
+}
+
+/* Inline variant for the /dev/caught preview gallery */
+.result-card--inline {
+  position: relative;
+  inset: auto;
+  min-height: 380px;
+  border-radius: 16px;
+  border: 1px solid rgba(205, 216, 224, 0.12);
+  background: radial-gradient(120% 90% at 50% 34%, rgba(20, 32, 38, 0.92), rgba(8, 14, 18, 0.96));
+  padding: 24px 18px 22px;
+  animation: none;
+}
+
+.caught-preview {
+  min-height: 100dvh;
+  padding: 28px 18px 64px;
+  background: #0a1014;
+  color: var(--moonlight);
+}
+
+.caught-preview-head {
+  max-width: 960px;
+  margin: 0 auto 22px;
+  text-align: center;
+}
+
+.caught-preview-head h1 {
+  margin: 0 0 6px;
+  font-size: 1.35rem;
+}
+
+.caught-preview-head p {
+  margin: 0 0 8px;
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+
+.caught-preview-head a {
+  color: rgba(200, 168, 92, 0.9);
+}
+
+.caught-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(258px, 1fr));
+  gap: 18px;
+  max-width: 960px;
+  margin: 0 auto;
 }
 
 .tune-page {

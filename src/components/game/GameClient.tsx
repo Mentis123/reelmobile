@@ -14,10 +14,11 @@ import { add, clamp, clampToPond, distance, lerp, lerpVec, normalize, scale, see
 import { createId, dailySeed, type Catch, type Failure, useSessionStore } from '@/game/persistence/sessionStore';
 import { createVerletLine, type VerletLine, updateVerletLine } from '@/game/physics/verletLine';
 import { useGameStore } from '@/game/state/gameStore';
-import type { FailureKind, GameState } from '@/game/state/gameStateMachine';
+import type { FailureKind, GameState, ResultCatch } from '@/game/state/gameStateMachine';
 import { TUNING } from '@/game/tuning/tuning';
 import { track } from '@/game/telemetry/track';
 import { failureStory, generateStory } from '@/game/ui/storyGenerator';
+import { CatchResultCard } from '@/components/game/CatchResultCard';
 
 type PointerSnapshot = {
   id: number;
@@ -282,6 +283,7 @@ export function GameClient() {
 
     const now = Date.now();
     let storyText = failureStory(outcome);
+    let resultCatch: ResultCatch | undefined;
     audio.current.stopLoops();
 
     if (outcome === 'catch') {
@@ -298,6 +300,14 @@ export function GameClient() {
       };
       catchEntry.storyText = generateStory(catchEntry);
       storyText = catchEntry.storyText;
+      resultCatch = {
+        species: catchEntry.species,
+        sizeScore: catchEntry.sizeScore,
+        lure: catchEntry.lure,
+        durationMs: catchEntry.durationMs,
+        nearSnaps: catchEntry.nearSnaps,
+        peakTension: catchEntry.peakTension
+      };
       sessionStore.recordCatch(catchEntry);
       track({ type: 'catch', catch: catchEntry });
       audio.current.catchChime();
@@ -315,7 +325,7 @@ export function GameClient() {
       track({ type: 'failure', failure });
     }
 
-    runtime.current.state = { kind: 'result', outcome, storyText, shownAt: now, peakTension };
+    runtime.current.state = { kind: 'result', outcome, storyText, shownAt: now, peakTension, catch: resultCatch };
     runtime.current.reeling = false;
     runtime.current.tension = 0;
     runtime.current.lateHookUntil = 0;
@@ -940,29 +950,13 @@ export function GameClient() {
       )}
 
       {gameState.kind === 'result' ? (
-        <section
-          className="result-card"
-          data-testid="result-card"
-          onPointerDown={(event) => {
-            event.stopPropagation();
-          }}
-        >
-          <p>{gameState.storyText}</p>
-          <button
-            type="button"
-            disabled={!resultDismissReady}
-            onPointerDown={(event) => {
-              event.stopPropagation();
-            }}
-            onClick={() => {
-              if (resultDismissReady) {
-                resetCast();
-              }
-            }}
-          >
-            Cast again.
-          </button>
-        </section>
+        <CatchResultCard
+          outcome={gameState.outcome}
+          result={gameState.catch ?? null}
+          storyText={gameState.storyText}
+          dismissReady={resultDismissReady}
+          onCastAgain={resetCast}
+        />
       ) : null}
 
       {restoring ? <div className="restore-overlay">Restoring...</div> : null}
