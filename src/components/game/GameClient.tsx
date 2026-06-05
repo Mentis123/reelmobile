@@ -66,6 +66,7 @@ type Runtime = {
   nextFalseCueAt: number;
   nextStruggleRippleAt: number;
   nextSurgeAt: number;
+  lastRippleSweepAt: number;
   spawnIndex: number;
   realCueIndex: number;
   restoring: boolean;
@@ -1438,6 +1439,19 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
       aimRingRy = Math.max(rawRy, aimRingRx * 0.1);
     }
 
+    // Sweep faded ripples so their meshes/geometries/materials unmount instead of
+    // piling up for the whole cast cycle (07_PERFORMANCE_BUDGET draw-call/triangle
+    // budget). Throttled, and only commits a new array when something actually
+    // expired — a no-op sweep must not re-render WaterRipples.
+    if (now - current.lastRippleSweepAt > TUNING.performance.rippleSweepIntervalMs) {
+      current.lastRippleSweepAt = now;
+      const grace = TUNING.performance.rippleSweepGraceMs;
+      setRipples((value) => {
+        const alive = value.filter((ripple) => now - ripple.createdAt < ripple.durationMs + grace);
+        return alive.length === value.length ? value : alive;
+      });
+    }
+
     setOverlay({ linePoints, rodTip: rodTipScreen, lure: lureScreen, aimTarget: aimTargetScreen, aimRingRx, aimRingRy });
     setRodOffset(current.rodOffset);
     setFishState(current.fish.state);
@@ -2179,6 +2193,7 @@ function createRuntime(seed: string, spawnIndex = 0): Runtime {
     nextFalseCueAt: nowMs() + lerp(TUNING.fish.cueFalseMinMs, TUNING.fish.cueFalseMaxMs, rng()),
     nextStruggleRippleAt: 0,
     nextSurgeAt: 0,
+    lastRippleSweepAt: 0,
     spawnIndex,
     realCueIndex: 0,
     restoring: false,
