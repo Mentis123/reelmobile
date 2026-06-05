@@ -1131,6 +1131,12 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
       setLureState('casting');
 
       if (t >= 1) {
+        // Whichever fish is nearest where the lure just splashed becomes the
+        // catchable one — so casting at any visible fish (not just the single
+        // privileged primary) makes that fish turn toward the splash and engage.
+        // Without this, the 4 decor fish are inert silhouettes that ignore the
+        // lure no matter how perfectly you cast at them.
+        promoteNearestFish(current, gameState.target);
         current.state = { kind: 'lure_idle', lurePos: gameState.target, sinceMs: now, lastTwitchAt: current.lastTwitchAt };
         current.lureY = TUNING.world.lureSurfaceY;
         audio.current.lurePlop(gameState.power);
@@ -2333,6 +2339,37 @@ function updateRodControl(runtime: Runtime, dt: number) {
   }
 }
 
+function promoteNearestFish(runtime: Runtime, point: Vec2) {
+  // Only repoint while nothing is engaged yet — once the active fish has noticed
+  // the lure it owns the cast, so we don't yank the catchable identity out from
+  // under an in-progress approach. Decor fish always wander (they're updated with
+  // no lure), so any of them is a valid fresh candidate.
+  if (runtime.fish.state.kind !== 'wander') {
+    return;
+  }
+
+  let bestIndex = -1;
+  let bestDist = distance(runtime.fish.position, point);
+  for (let i = 0; i < runtime.decorFish.length; i++) {
+    const d = distance(runtime.decorFish[i].snapshot.position, point);
+    if (d < bestDist) {
+      bestDist = d;
+      bestIndex = i;
+    }
+  }
+
+  if (bestIndex >= 0) {
+    // Swap snapshots only; the slot's fade phase/period stay put. The fish that
+    // was nearest the splash is now the primary (catchable) fish, and the old
+    // primary drifts on as decor. If even the nearest fish is beyond its notice
+    // radius (a long blind cast into empty dark), it simply won't engage — the
+    // cast misses, which is the intended gamble, not a guaranteed bite.
+    const promoted = runtime.decorFish[bestIndex].snapshot;
+    runtime.decorFish[bestIndex].snapshot = runtime.fish;
+    runtime.fish = promoted;
+  }
+}
+
 function updateHookedContactPoint(runtime: Runtime, dt: number) {
   if (runtime.state.kind !== 'hooked') {
     return;
@@ -2356,6 +2393,17 @@ function updateHookedContactPoint(runtime: Runtime, dt: number) {
       };
     }
   }
+
+  // Hard safety net: momentum (lineDamping 0.98) can carry the fish past its
+  // clamped flee target, so pin the hooked fish inside the visible arena every
+  // frame — it can fight to the edge of the frame but never swim out of it.
+  runtime.fish = {
+    ...runtime.fish,
+    position: {
+      x: clamp(runtime.fish.position.x, -TUNING.world.hookedArenaHalfWidthM, TUNING.world.hookedArenaHalfWidthM),
+      z: clamp(runtime.fish.position.z, TUNING.world.fishableMinZ, TUNING.world.fishableMaxZ)
+    }
+  };
 
   runtime.lurePos = { x: runtime.fish.position.x, z: runtime.fish.position.z };
   runtime.lureY = TUNING.world.lureSinkDepthY;

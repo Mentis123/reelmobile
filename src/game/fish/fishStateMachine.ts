@@ -1,4 +1,4 @@
-import { add, distance, normalize, scale, sub, type Vec2 } from '@/game/math/vec';
+import { add, clamp, distance, normalize, scale, sub, type Vec2 } from '@/game/math/vec';
 import { TUNING } from '@/game/tuning/tuning';
 import { createFishInstance, createFishInstanceOfSpecies, personalityMultiplier, speciesTuning, type FishInstance, type SpeciesId } from '@/game/fish/species';
 
@@ -206,8 +206,12 @@ function hesitation(personality: number): number {
 function fleeTarget(position: Vec2, personality = 0): Vec2 {
   const reach = TUNING.world.fishWanderRadiusM * (1 + personality * TUNING.fish.personalityModulation);
   const bias = Math.sign(position.x) || (personality >= 0 ? 1 : -1);
+  // Keep the flee/fight target inside the visible arena. Unbounded, x could push
+  // ~7.8m past the fish — far off the visible water (a hooked fish swimming off
+  // screen). Clamp x to the on-screen arena and z to the fishable band so the
+  // fight always plays out where the player can see it.
   return {
-    x: position.x + bias * reach,
-    z: Math.min(position.z + reach, TUNING.world.fishableMaxZ)
+    x: clamp(position.x + bias * reach, -TUNING.world.hookedArenaHalfWidthM, TUNING.world.hookedArenaHalfWidthM),
+    z: clamp(Math.min(position.z + reach, TUNING.world.fishableMaxZ), TUNING.world.fishableMinZ, TUNING.world.fishableMaxZ)
   };
 }

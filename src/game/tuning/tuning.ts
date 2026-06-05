@@ -63,6 +63,11 @@ export const TUNING = {
     waterSegments: 32,
     fishableMinZ: -5.4,
     fishableMaxZ: 1.8,
+    // A hooked fish must stay on screen while it fights (don't let the flee
+    // vector drag it off the visible water — pond half-width is 4.5m but the
+    // camera frustum only shows ~±3.2m). Bound the fight to this arena: the fish
+    // surges and pulls but is held inside the frame the player can see.
+    hookedArenaHalfWidthM: 3,
     // The reveal (21_THE_REVEAL): a fish's SIZE is unreadable out in the dark and
     // resolves to its true size only as it comes near — so a hooked fish grows
     // into what it really is as you reel it in (and sometimes the big shadow turns
