@@ -418,7 +418,21 @@ export const TUNING = {
     pixelRatioStep: 0.5,
     particleBaseCount: 16,
     particleReducedMultiplier: 0.5,
-    lowMotionMultiplier: 0.3
+    lowMotionMultiplier: 0.3,
+    // Ripple/cue meshes are pushed into React state as cues fire and were only
+    // ever cleared on a fresh cast. Within one cast cycle (idle scouting fires a
+    // false cue every cueFalseMin..Max ms forever) they accumulated without
+    // bound — draw calls and triangles climbed monotonically (measured 15->63
+    // draw calls over 60s idle, breaching the <50 budget at ~40s). Sweep expired
+    // ripples on this cadence so each ripple's mesh/geometry/material unmounts
+    // once it has fully faded. Cheap throttle: at most a few sweeps per second,
+    // and only when something actually expired (no needless re-render churn).
+    rippleSweepIntervalMs: 400,
+    // Grace past durationMs before a ripple is reaped. A ripple's opacity reaches
+    // 0 exactly at durationMs (WaterRipple: (1 - progress) * peak), so anything
+    // older is already invisible. Keep a small margin so a sweep never pops a
+    // ripple a frame before it finishes its last visible frame.
+    rippleSweepGraceMs: 120
   },
   audio: {
     masterGain: 0.7,
