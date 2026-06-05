@@ -43,6 +43,16 @@ export default function JournalPage() {
 
   const speciesCount = useMemo(() => new Set(catches.map((c) => c.species)).size, [catches]);
 
+  const best = useMemo(() => {
+    let top: { len: number; species: SpeciesId } | null = null;
+    for (const c of catches) {
+      if (!isKnownSpecies(c.species)) continue;
+      const len = trophyLengthCm(c.species, c.sizeScore);
+      if (!top || len > top.len) top = { len, species: c.species };
+    }
+    return top;
+  }, [catches]);
+
   if (!journal) {
     return <main className="journal" />;
   }
@@ -55,6 +65,9 @@ export default function JournalPage() {
           <p className="journal-totals">
             {catches.length} landed · {speciesCount} {speciesCount === 1 ? 'kind' : 'kinds'}
           </p>
+        ) : null}
+        {best ? (
+          <p className="journal-best">Best · {best.len} cm {speciesLabel(best.species)}</p>
         ) : null}
         <Link href="/game" className="journal-back">Cast a line →</Link>
       </header>
