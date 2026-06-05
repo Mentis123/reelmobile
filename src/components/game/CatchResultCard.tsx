@@ -63,6 +63,7 @@ type CatchResultCardProps = {
   storyText: string;
   dismissReady?: boolean;
   onCastAgain?: () => void;
+  castAgainLabel?: string;
   className?: string;
   inline?: boolean;
 };
@@ -73,6 +74,7 @@ export function CatchResultCard({
   storyText,
   dismissReady = true,
   onCastAgain,
+  castAgainLabel = 'Cast again.',
   className,
   inline = false
 }: CatchResultCardProps) {
@@ -122,7 +124,7 @@ export function CatchResultCard({
             if (dismissReady) onCastAgain?.();
           }}
         >
-          Cast again.
+          {castAgainLabel}
         </button>
         {showTrophy ? (
           <button

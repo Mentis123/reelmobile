@@ -68,21 +68,24 @@ export default function JournalPage() {
       ) : (
         <ul className="journal-list">
           {catches.map((c) => (
-            <li key={c.id} className="journal-entry">
-              <div className="journal-entry-fish">
-                {isKnownSpecies(c.species) ? (
-                  <FishPortrait species={c.species} sizeScore={c.sizeScore} />
-                ) : null}
-              </div>
-              <div className="journal-entry-body">
-                <h2 className="journal-entry-name">{speciesLabel(c.species)}</h2>
-                <p className="journal-entry-meta">
-                  {isKnownSpecies(c.species) ? `${trophyLengthCm(c.species, c.sizeScore)} cm · ` : ''}
-                  {trophySizeWord(c.sizeScore)}
-                </p>
-                <p className="journal-entry-fight">{fightLine(c)}</p>
-                <p className="journal-entry-when">{whenLabel(c.at)}</p>
-              </div>
+            <li key={c.id}>
+              <Link href={`/journal/${c.id}`} className="journal-entry">
+                <div className="journal-entry-fish">
+                  {isKnownSpecies(c.species) ? (
+                    <FishPortrait species={c.species} sizeScore={c.sizeScore} />
+                  ) : null}
+                </div>
+                <div className="journal-entry-body">
+                  <h2 className="journal-entry-name">{speciesLabel(c.species)}</h2>
+                  <p className="journal-entry-meta">
+                    {isKnownSpecies(c.species) ? `${trophyLengthCm(c.species, c.sizeScore)} cm · ` : ''}
+                    {trophySizeWord(c.sizeScore)}
+                  </p>
+                  <p className="journal-entry-fight">{fightLine(c)}</p>
+                  <p className="journal-entry-when">{whenLabel(c.at)}</p>
+                </div>
+                <span className="journal-entry-chevron" aria-hidden="true">›</span>
+              </Link>
             </li>
           ))}
         </ul>
