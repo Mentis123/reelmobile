@@ -5,7 +5,13 @@ import { SPECIES_STORY_LABELS, type SpeciesId } from '@/game/fish/species';
 // renders it instead of the procedural draw. Keep these as side-profile, head-left,
 // transparent-background, moonlit-palette art matched to 08_ART_DIRECTION. Empty
 // until art is generated — the procedural render is the always-present default.
-export const SPECIES_ART: Partial<Record<SpeciesId, string>> = {};
+export const SPECIES_ART: Partial<Record<SpeciesId, string>> = {
+  bronze_carp: '/assets/fish/bronze_carp.webp',
+  moss_bass: '/assets/fish/moss_bass.webp',
+  moon_minnow: '/assets/fish/moon_minnow.webp',
+  old_kingfish: '/assets/fish/old_kingfish.webp',
+  reed_pike: '/assets/fish/reed_pike.webp'
+};
 
 type TrophyProfile = {
   /** dorsal/back edge — catches the moonlight */
