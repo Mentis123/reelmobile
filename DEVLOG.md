@@ -626,3 +626,15 @@ Append after every milestone. Format:
 - Tunable in `TUNING.world`; the resolve distances/curve are an iPhone feel-gate.
 
 **Deferred (need sighted tuning, flagged in `21_THE_REVEAL`):** shape concealment (generic far silhouette → species silhouette crossfade, not a pop) and cue genericisation. These are the parts that want your eye, so they're not shipped blind.
+
+## The Reveal v2 + the alive pond (2026-06-05)
+*The deferred halves of `21_THE_REVEAL`, now built, plus the companion the attraction fix unlocked. One candidate, gating before Ch8 Gear.*
+
+**The Reveal v2 — shape + cue concealment (the full resolve gradient):**
+- **Shape crossfade (pop-free).** Each fish now has a generic "smudge" twin mesh (`fishGenericRefs` + `createGenericSilhouette()`, a soft radial ellipse). Species-silhouette opacity ×`reveal`, twin opacity ×`(1 − reveal)` on the same `fishRevealAmount` gradient as the size lerp — far shows only the smudge, near only the true silhouette, between a brief crossfade. Twin uses **neutral** opacity (no `species.opacityMultiplier`) so brightness can't leak the species. No texture swap → no pop. Far fish stay spottable (the smudge ≈ the old far-shadow brightness).
+- **Cue genericisation.** `cueForReveal()` returns an identity-free `GENERIC_CUE_KINDS` cue (wake/ripple) at a neutral `genericCueRadiusM` below `cueSpeciesRevealThreshold`; only near does the species' own cue + radius show. A far cue now reads as *something moved*, not *what*.
+- So all three tells — size, shape, identity — hide in the dark and resolve together as a hooked fish is reeled into the clear water.
+
+**Alive pond (companion to the nearest-fish-catchable fix):** every decor fish now emits its own cues (`decorCueMinMs`..`decorCueMaxMs`), far ones generic via the same `cueForReveal`. The expanse reads populated and each shadow is a real fish you could cast at — none betraying identity at distance.
+
+**New constants** (`TUNING.fish`): `cueSpeciesRevealThreshold`, `genericCueRadiusM`, `decorCueMinMs`, `decorCueMaxMs`. Canon updated (`21_THE_REVEAL` v2 + alive-pond sections). Feel gates left for the iPhone: the crossfade band/curve and pond cue density.

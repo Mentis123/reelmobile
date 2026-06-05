@@ -22,8 +22,20 @@ The Caught screen (`<CatchResultCard>` / the trophy) is the final beat of the re
 
 Tunable in `TUNING.world`: `revealNoneZ`, `revealFullZ`, `revealGenericWidthM`, `revealGenericHeightM`.
 
-## Next (to tune on a real device)
+## Implemented (v2 — shape + cue concealment, the full resolve gradient)
 
-- **Shape concealment:** swap a far fish to a generic silhouette, resolving to its species silhouette on approach (a crossfade, not a pop — needs sighted tuning, so deferred from v1).
-- **Cue genericisation:** species-distinct cues (`SPECIES_CUE_SIGNATURES`) shouldn't betray identity at distance.
-- These are feel/visual gates (`16_HUMAN_GATES`): the *resolve distances and curve* are judged on a real iPhone, not by machine.
+All three tells now hide in the dark and resolve together on the same `fishRevealAmount` gradient:
+
+- **Shape concealment (crossfade, pop-free).** Each fish has a generic "smudge" twin mesh (`fishGenericRefs`, a soft radial-ellipse texture from `createGenericSilhouette()`). The species silhouette's opacity is multiplied by `reveal`; the twin's by `1 − reveal`. Far → only the smudge shows; near → only the true species silhouette; between → a brief crossfade as it resolves. The twin uses a **neutral** opacity (no `species.opacityMultiplier`) so brightness never leaks which species it is. No texture swap → no pop.
+- **Cue genericisation.** `cueForReveal(species, i, reveal, threshold)` returns an identity-free `GENERIC_CUE_KINDS` cue (wake / ripple) at a neutral `genericCueRadiusM` while a fish is below `cueSpeciesRevealThreshold`; only near does its `SPECIES_CUE_SIGNATURES` cue + `primaryCueRadiusM` show. So a far cue tells you *something moved*, not *what*.
+
+Tunable in `TUNING.fish`: `cueSpeciesRevealThreshold`, `genericCueRadiusM`.
+
+## Alive pond (companion to v2)
+
+Now that **any** fish you cast near is catchable (nearest-to-splash promotion), every fish — not just the one primary — leaves the occasional cue out in the water (`decorCueMinMs`..`decorCueMaxMs` per fish), far ones generic via the same `cueForReveal`. The expanse reads populated, and each shadow is a real fish you could cast at, without any of them betraying identity at distance.
+
+## To tune on a real device (feel gates — `16_HUMAN_GATES`)
+
+- The *resolve distances and curve* (`revealNoneZ`/`revealFullZ`) and the *crossfade band* — judged on a real iPhone, not by machine. If the smudge→silhouette crossfade pops or resolves too early/late, these are the knobs.
+- Pond cue density (`decorCueMinMs`..`decorCueMaxMs`, `cueRealEveryMs`, the false-cue cadence): alive vs. cluttered is a felt call.

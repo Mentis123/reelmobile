@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { OfflineStatus } from '@/components/pwa/OfflineStatus';
 import { ProceduralAudio } from '@/game/audio/procedural';
 import { createInitialFish, type FishSnapshot, updateFish } from '@/game/fish/fishStateMachine';
-import { pickSpeciesCue, speciesTuning, SPECIES_IDS, type FishCueKind, type SpeciesId } from '@/game/fish/species';
+import { cueForReveal, speciesTuning, SPECIES_IDS, type FishCueKind, type SpeciesId } from '@/game/fish/species';
 import { add, clamp, clampToPond, distance, lerp, lerpVec, normalize, scale, seededRandom, sub, type Vec2 } from '@/game/math/vec';
 import { createId, dailySeed, type Catch, type Failure, useSessionStore } from '@/game/persistence/sessionStore';
 import { createVerletLine, type VerletLine, updateVerletLine } from '@/game/physics/verletLine';
@@ -35,6 +35,8 @@ type DecorFish = {
   snapshot: FishSnapshot;
   fadePhase: number;
   fadePeriodMs: number;
+  nextCueAt: number;
+  cueIndex: number;
 };
 
 type Runtime = {
@@ -1037,6 +1039,12 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
   const fishRefs = useRef<Array<THREE.Mesh | null>>(
     Array.from({ length: TUNING.world.fishMaxVisible }, () => null)
   );
+  // Generic "smudge" twin per fish — shown when the fish is far/unknown and
+  // crossfaded out as its true silhouette resolves near the clear water
+  // (21_THE_REVEAL: identity, not just size, is hidden in the dark).
+  const fishGenericRefs = useRef<Array<THREE.Mesh | null>>(
+    Array.from({ length: TUNING.world.fishMaxVisible }, () => null)
+  );
   const lureRef = useRef<THREE.Mesh>(null);
   const { camera, gl, size } = useThree();
   const projVecRef = useRef(new THREE.Vector3());
@@ -1051,6 +1059,7 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
     ASSETS.lureDefault
   ]);
   const silhouettes = useMemo(() => createSpeciesSilhouettes(), []);
+  const genericSilhouette = useMemo(() => createGenericSilhouette(), []);
   const lastSilhouetteSpecies = useRef<Array<SpeciesId | null>>(
     Array.from({ length: TUNING.world.fishMaxVisible }, () => null)
   );
@@ -1197,8 +1206,13 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
     }
 
     if (now > current.nextRealCueAt) {
-      const cue = pickSpeciesCue(current.fish.instance.species, current.realCueIndex);
       const species = speciesTuning(current.fish.instance.species);
+      // While the catchable fish is still out in the dark its cue is identity-free
+      // movement at a neutral radius; only as it resolves near does its own species
+      // cue + size show (21_THE_REVEAL).
+      const cueReveal = fishRevealAmount(current.fish.position);
+      const cue = cueForReveal(current.fish.instance.species, current.realCueIndex, cueReveal, TUNING.fish.cueSpeciesRevealThreshold);
+      const cueRadius = cueReveal < TUNING.fish.cueSpeciesRevealThreshold ? TUNING.fish.genericCueRadiusM : species.primaryCueRadiusM;
       current.realCueIndex += 1;
       current.nextRealCueAt = now + TUNING.fish.cueRealEveryMs * species.cueEveryMultiplier;
       setRipples((value) => [
@@ -1206,7 +1220,7 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
         {
           id: createId(),
           pos: current.fish.position,
-          radius: species.primaryCueRadiusM,
+          radius: cueRadius,
           createdAt: now,
           durationMs: cueDuration(cue),
           falseCue: false,
@@ -1308,6 +1322,30 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
         hooked: false,
         rng: current.rng
       }, decor.snapshot);
+
+      // Alive pond: every fish — not just the catchable one — leaves the odd cue
+      // out in the water. Far ones read as identity-free movement, so the whole
+      // expanse feels populated without revealing what's where (21_THE_REVEAL).
+      if (now > decor.nextCueAt) {
+        const decorReveal = fishRevealAmount(decor.snapshot.position);
+        const decorSpecies = speciesTuning(decor.snapshot.instance.species);
+        const decorCue = cueForReveal(decor.snapshot.instance.species, decor.cueIndex, decorReveal, TUNING.fish.cueSpeciesRevealThreshold);
+        const decorRadius = decorReveal < TUNING.fish.cueSpeciesRevealThreshold ? TUNING.fish.genericCueRadiusM : decorSpecies.primaryCueRadiusM;
+        decor.cueIndex += 1;
+        decor.nextCueAt = now + lerp(TUNING.fish.decorCueMinMs, TUNING.fish.decorCueMaxMs, current.rng());
+        setRipples((value) => [
+          ...value,
+          {
+            id: createId(),
+            pos: { x: decor.snapshot.position.x, z: decor.snapshot.position.z },
+            radius: decorRadius,
+            createdAt: now,
+            durationMs: cueDuration(decorCue),
+            falseCue: false,
+            cue: decorCue
+          }
+        ]);
+      }
     }
 
     const slerpAlpha = Math.min(1, dt * TUNING.fish.fishFacingTurnRate);
@@ -1315,6 +1353,10 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
     for (let i = 0; i < TUNING.world.fishMaxVisible; i++) {
       const mesh = fishRefs.current[i];
       if (!mesh) {
+        const orphanTwin = fishGenericRefs.current[i];
+        if (orphanTwin) {
+          orphanTwin.visible = false;
+        }
         continue;
       }
 
@@ -1322,6 +1364,10 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
       const snapshot = isPrimary ? current.fish : current.decorFish[i - 1]?.snapshot;
       if (!snapshot) {
         mesh.visible = false;
+        const hiddenTwin = fishGenericRefs.current[i];
+        if (hiddenTwin) {
+          hiddenTwin.visible = false;
+        }
         continue;
       }
 
@@ -1334,11 +1380,9 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
       // their true size as they near the clear water.
       const reveal = fishRevealAmount(snapshot.position);
       const commitScalar = snapshot.state.kind === 'commit' ? 1 + TUNING.fish.personalityScalar : 1;
-      mesh.scale.set(
-        lerp(TUNING.world.revealGenericWidthM, species.widthM * commitScalar, reveal),
-        lerp(TUNING.world.revealGenericHeightM, species.heightM, reveal),
-        1
-      );
+      const fishScaleX = lerp(TUNING.world.revealGenericWidthM, species.widthM * commitScalar, reveal);
+      const fishScaleY = lerp(TUNING.world.revealGenericHeightM, species.heightM, reveal);
+      mesh.scale.set(fishScaleX, fishScaleY, 1);
       const material = mesh.material as THREE.MeshBasicMaterial;
       if (lastSilhouetteSpecies.current[i] !== speciesId) {
         material.map = silhouettes.get(speciesId) ?? null;
@@ -1351,7 +1395,26 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
       const fade = isPrimary
         ? fishFadeMultiplier(now, current.fishFadePhase, current.fishFadePeriodMs)
         : fishFadeMultiplier(now, current.decorFish[i - 1].fadePhase, current.decorFish[i - 1].fadePeriodMs);
-      material.opacity = baseOpacity * species.opacityMultiplier * fishDistanceVisibility(snapshot.position) * fade;
+      const distanceVis = fishDistanceVisibility(snapshot.position);
+      // Crossfade species silhouette (visible only as it resolves near) against
+      // the generic smudge twin (visible only while far/unknown), driven by the
+      // same reveal amount as the size lerp — so shape, size AND identity all
+      // hide in the dark and resolve together (21_THE_REVEAL).
+      material.opacity = baseOpacity * species.opacityMultiplier * distanceVis * fade * reveal;
+      const twin = fishGenericRefs.current[i];
+      if (twin) {
+        twin.visible = true;
+        twin.position.set(snapshot.position.x, TUNING.world.fishDepthY, snapshot.position.z);
+        // Share the species mesh's reveal-lerped size so the crossfade is pure
+        // shape — smudge and resolving silhouette stay the same size, not two
+        // different-sized shadows blending.
+        twin.scale.set(fishScaleX, fishScaleY, 1);
+        const twinMaterial = twin.material as THREE.MeshBasicMaterial;
+        // One neutral, dampened brightness (no species.opacityMultiplier) so a far
+        // shadow neither leaks which species it is nor reads brighter/more spottable
+        // than the old per-species far shadow did.
+        twinMaterial.opacity = TUNING.world.fishCueOpacity * TUNING.world.revealGenericOpacityMultiplier * distanceVis * fade * (1 - reveal);
+      }
       material.color.set(snapshot.state.kind === 'commit' || snapshot.state.kind === 'bite' ? '#202323' : '#111718');
 
       const speed = Math.hypot(snapshot.velocity.x, snapshot.velocity.z);
@@ -1471,6 +1534,21 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
         >
           <planeGeometry args={[1, 1]} />
           <meshBasicMaterial map={silhouettes.get(SPECIES_IDS[0]) ?? null} color="#111718" transparent opacity={TUNING.world.fishCueOpacity} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+      {Array.from({ length: TUNING.world.fishMaxVisible }, (_, i) => (
+        <mesh
+          key={`generic-${i}`}
+          ref={(node) => {
+            fishGenericRefs.current[i] = node;
+          }}
+          renderOrder={1}
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[TUNING.world.fishStart.x, TUNING.world.fishDepthY, TUNING.world.fishStart.z]}
+          visible={false}
+        >
+          <planeGeometry args={[1, 1]} />
+          <meshBasicMaterial map={genericSilhouette} color="#111718" transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
       ))}
       <mesh ref={lureRef} visible={false} renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[TUNING.world.lureStart.x, TUNING.world.lureSurfaceY, TUNING.world.lureStart.z]}>
@@ -2147,7 +2225,9 @@ function createRuntime(seed: string, spawnIndex = 0): Runtime {
   const decorFish: DecorFish[] = Array.from({ length: extraCount }, () => ({
     snapshot: createInitialFish(rng),
     fadePhase: rng() * Math.PI * 2,
-    fadePeriodMs: lerp(TUNING.world.fishFadeMinPeriodMs, TUNING.world.fishFadeMaxPeriodMs, rng())
+    fadePeriodMs: lerp(TUNING.world.fishFadeMinPeriodMs, TUNING.world.fishFadeMaxPeriodMs, rng()),
+    nextCueAt: nowMs() + lerp(TUNING.fish.decorCueMinMs, TUNING.fish.decorCueMaxMs, rng()),
+    cueIndex: 0
   }));
 
   return {
@@ -2628,6 +2708,42 @@ function createSpeciesSilhouettes(): Map<SpeciesId, THREE.CanvasTexture> {
   }
 
   return map;
+}
+
+function createGenericSilhouette(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  const size = 96;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    return null;
+  }
+
+  // A soft, shapeless smudge — "something moved out there," with no species or
+  // size tell. Feathered radial alpha so a far fish reads as a blur on the dark
+  // water, not a readable fish (21_THE_REVEAL).
+  const cx = size / 2;
+  const cy = size / 2;
+  const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, cx);
+  gradient.addColorStop(0, 'rgba(13, 18, 18, 1)');
+  gradient.addColorStop(0.55, 'rgba(13, 18, 18, 0.82)');
+  gradient.addColorStop(1, 'rgba(13, 18, 18, 0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, cx, cy * 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  texture.anisotropy = 4;
+  return texture;
 }
 
 function createSpeciesSilhouette(species: SpeciesId): THREE.CanvasTexture | null {

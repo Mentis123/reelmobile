@@ -63,6 +63,23 @@ export function pickSpeciesCue(species: SpeciesId, cueIndex: number): FishCueKin
   return cues[cueIndex % cues.length];
 }
 
+// Identity-free cue kinds — pure movement on the surface (a wake, a ripple) with
+// no species tell. Used for a fish still out in the dark (21_THE_REVEAL): you see
+// that something moved, not what it is.
+export const GENERIC_CUE_KINDS: FishCueKind[] = ['wake', 'ripple'];
+
+export function cueForReveal(
+  species: SpeciesId,
+  cueIndex: number,
+  reveal: number,
+  speciesThreshold: number
+): FishCueKind {
+  if (reveal < speciesThreshold) {
+    return GENERIC_CUE_KINDS[cueIndex % GENERIC_CUE_KINDS.length];
+  }
+  return pickSpeciesCue(species, cueIndex);
+}
+
 function pickSpecies(rng: () => number): SpeciesId {
   const totalWeight = SPECIES_IDS.reduce((sum, species) => sum + speciesTuning(species).spawnWeight, 0);
   let roll = rng() * totalWeight;

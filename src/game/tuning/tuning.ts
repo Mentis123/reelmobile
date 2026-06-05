@@ -77,6 +77,11 @@ export const TUNING = {
     revealFullZ: 0.5,
     revealGenericWidthM: 0.7,
     revealGenericHeightM: 0.26,
+    // The generic "smudge" twin shown while a fish is far/unknown uses ONE neutral
+    // brightness instead of each species' own opacityMultiplier (0.78–1.08) — so a
+    // far shadow can't betray its species by brightness. Dampened a touch so the
+    // smudge isn't more spottable than the old per-species far shadow was.
+    revealGenericOpacityMultiplier: 0.9,
     cameraLookAtLerp: 0.08
   },
   // Pond visual constants consumed by the WebGL scene (PondWater shader, fog,
@@ -233,6 +238,19 @@ export const TUNING = {
     cueFalsePeakOpacity: 0.22,
     cueSiltOpacityMultiplier: 0.78,
     cueBubbleTrailCount: 4,
+    // The reveal, completed (21_THE_REVEAL): below this resolve amount a fish's
+    // cue reads as identity-free movement at a neutral radius (no species or size
+    // tell); at/above it the species' own cue + radius show. Decor fish out in the
+    // water emit their own cues on this interval so the whole pond feels alive —
+    // every shadow is a real fish you could cast at, not just one.
+    cueSpeciesRevealThreshold: 0.5,
+    // The smallest species cue radius (== moon_minnow). A far cue is deliberately
+    // the smallest size, never mid-range — so it can't whisper "this one's big";
+    // the surprise always resolves UPWARD as the fish nears ("bigger than I'd
+    // hoped"). A neutral-but-centred radius would itself leak size (21_THE_REVEAL).
+    genericCueRadiusM: 0.16,
+    decorCueMinMs: 3800,
+    decorCueMaxMs: 8200,
     staminaLandThreshold: 0.1,
     earlyHookStates: ['approach', 'inspect', 'commit'] as const,
     catchMinSizeScore: 0.35,
