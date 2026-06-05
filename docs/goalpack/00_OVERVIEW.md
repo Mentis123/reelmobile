@@ -65,3 +65,4 @@ Single water. Ambient. Tactile. Mysterious. The fish are not labelled. The water
 19. `18_ULTRACODE_PARADIGM.md` — the ultracode self-verification amendment
 20. `19_THE_FAR_WATER.md` — the distance loop: range, accuracy falloff, visibility falloff, rod-in-hand (supersedes the dock framing)
 21. `20_ROADMAP.md` — the forward chapter sequence and standing build method (supersedes `03`'s milestone ordering)
+22. `21_THE_REVEAL.md` — identity/size hidden in the dark, resolving as a fish is reeled into clear water (completes `19`'s pillar 3)

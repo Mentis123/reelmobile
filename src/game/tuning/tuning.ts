@@ -63,6 +63,15 @@ export const TUNING = {
     waterSegments: 32,
     fishableMinZ: -5.4,
     fishableMaxZ: 1.8,
+    // The reveal (21_THE_REVEAL): a fish's SIZE is unreadable out in the dark and
+    // resolves to its true size only as it comes near — so a hooked fish grows
+    // into what it really is as you reel it in (and sometimes the big shadow turns
+    // out small). Beyond revealNoneZ → generic ambiguous size; nearer than
+    // revealFullZ → true species size; smoothstep between.
+    revealNoneZ: -3,
+    revealFullZ: 0.5,
+    revealGenericWidthM: 0.7,
+    revealGenericHeightM: 0.26,
     cameraLookAtLerp: 0.08
   },
   // Pond visual constants consumed by the WebGL scene (PondWater shader, fog,

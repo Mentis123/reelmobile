@@ -1323,9 +1323,14 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
       mesh.position.set(snapshot.position.x, TUNING.world.fishDepthY, snapshot.position.z);
       const speciesId = snapshot.instance.species;
       const species = speciesTuning(speciesId);
+      // Size is concealed at distance and resolves on approach (21_THE_REVEAL):
+      // far fish render at a uniform ambiguous size, growing (or shrinking) to
+      // their true size as they near the clear water.
+      const reveal = fishRevealAmount(snapshot.position);
+      const commitScalar = snapshot.state.kind === 'commit' ? 1 + TUNING.fish.personalityScalar : 1;
       mesh.scale.set(
-        species.widthM * (snapshot.state.kind === 'commit' ? 1 + TUNING.fish.personalityScalar : 1),
-        species.heightM,
+        lerp(TUNING.world.revealGenericWidthM, species.widthM * commitScalar, reveal),
+        lerp(TUNING.world.revealGenericHeightM, species.heightM, reveal),
         1
       );
       const material = mesh.material as THREE.MeshBasicMaterial;
@@ -2546,6 +2551,17 @@ function fishDistanceVisibility(position: Vec2): number {
   const shaped = Math.pow(nearness, TUNING.world.fishFarVisibilityCurve);
 
   return lerp(TUNING.world.fishFarVisibility, TUNING.world.fishNearVisibility, shaped);
+}
+
+function fishRevealAmount(position: Vec2): number {
+  // 0 = far in the dark (size unknown), 1 = near in clear water (fully resolved).
+  // Smoothstep so identity eases in as a hooked fish is reeled toward the bank,
+  // and a far shadow stays ambiguous until it commits to the near water
+  // (21_THE_REVEAL).
+  const a = TUNING.world.revealNoneZ;
+  const b = TUNING.world.revealFullZ;
+  const t = clamp((position.z - a) / (b - a), 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
 function fishFadeMultiplier(nowMs: number, phase: number, periodMs: number): number {

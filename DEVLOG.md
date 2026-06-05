@@ -615,3 +615,14 @@ Append after every milestone. Format:
 - New `catchCard.ts` — composites a 1080×1350 PNG (the trophy art + `LANDED`/species/length/fight + `REEL MOBILE` footer) on the same moonlit gradient as the in-game card. New `shareCatch.ts` — `navigator.share({files})` where supported (iOS/Android), else downloads the PNG; AbortError (user cancels the sheet) counts as success. Share button on the Caught card; new `/dev/share` preview of all five cards.
 
 **Ultracode verification — four lenses (persistence/SSR, journal UI, share/canvas, regression/build):** three clean; the build lens ran the full pipeline (tsc + lint + `next build`) green across all 10 routes. One minor finding fixed: the journal grew unbounded — added the 500-cap so the per-write payload and the `/journal` render stay cheap.
+
+**Checkpoint:** `v0.7-catch-arc-candidate` tagged at the user-approved state (trophy + art + journal + share + consistent nav) — a rollback anchor before the riskier Reveal/Gear work.
+
+## v0.5 — The Reveal, v1 (2026-06-05)
+*Chapter 5's other half (`21_THE_REVEAL`), finally built. Completes `19_THE_FAR_WATER` pillar 3: you can't tell how big a far shadow is until you reel it in.*
+
+**Shipped (size concealment):**
+- New `fishRevealAmount(position)` — smoothstep over `[revealNoneZ -3, revealFullZ 0.5]`. The fish mesh scale now lerps from a uniform generic size (`revealGenericWidthM 0.7 × revealGenericHeightM 0.26`) far out to the **true species size** near. So every far fish reads at one ambiguous size and resolves its real size on approach — a hooked fish **grows (or shrinks) into what it really is** as you fight it in, and the Caught screen names it. Composes with the existing distance dimming.
+- Tunable in `TUNING.world`; the resolve distances/curve are an iPhone feel-gate.
+
+**Deferred (need sighted tuning, flagged in `21_THE_REVEAL`):** shape concealment (generic far silhouette → species silhouette crossfade, not a pop) and cue genericisation. These are the parts that want your eye, so they're not shipped blind.
