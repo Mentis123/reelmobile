@@ -78,6 +78,9 @@ type Runtime = {
   spawnIndex: number;
   realCueIndex: number;
   restoring: boolean;
+  // True while the rod/lure explainer is open — freezes the pond sim so the
+  // water holds still while reading (set from the overlay, read in GameScene).
+  pondFrozen: boolean;
   minFps: number;
   fpsSamples: Array<{ at: number; fps: number }>;
   lowFpsSince: number;
@@ -215,6 +218,23 @@ export function GameClient() {
     setGear(next);
     stampGear();
   }, [stampGear]);
+
+  // The rod/lure explainer is opened from the gear strip but it pauses the pond,
+  // so the open-state lives here (not inside GearSelect): the runtime needs to see
+  // it. Frozen only while the explainer is open AND we're scouting; the cleanup +
+  // the leave-scouting reset guarantee the freeze can never leak into a cast.
+  const [gearHelpOpen, setGearHelpOpen] = useState(false);
+  useEffect(() => {
+    runtime.current.pondFrozen = gearHelpOpen && gameState.kind === 'scouting';
+    return () => {
+      runtime.current.pondFrozen = false;
+    };
+  }, [gearHelpOpen, gameState.kind]);
+  useEffect(() => {
+    if (gameState.kind !== 'scouting' && gearHelpOpen) {
+      setGearHelpOpen(false);
+    }
+  }, [gameState.kind, gearHelpOpen]);
 
   useEffect(() => {
     spawnIndexRef.current = 0;
@@ -927,7 +947,7 @@ export function GameClient() {
       ) : null}
 
       {started && gameState.kind === 'scouting' ? (
-        <GearSelect gear={gear} onSelect={applyGear} />
+        <GearSelect gear={gear} onSelect={applyGear} explainerOpen={gearHelpOpen} onExplainerOpenChange={setGearHelpOpen} />
       ) : null}
 
       {started ? null : splashStage === 'primary' ? (
@@ -1172,6 +1192,13 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
 
   useFrame((_, dt) => {
     if (!started || runtime.current.restoring) {
+      return;
+    }
+
+    // Reading the rod/lure explainer pauses the pond — freeze the whole sim so the
+    // water and fish hold still. Only ever set during scouting, where nothing
+    // time-sensitive (cast/bite/fight) is in flight, so a clean early-return is safe.
+    if (runtime.current.pondFrozen) {
       return;
     }
 
@@ -1651,6 +1678,10 @@ function PondWater({ runtime, normalMap }: { runtime: React.MutableRefObject<Run
   }), [normalMap]);
 
   useFrame((_, dt) => {
+    // Hold the water surface still while the explainer pauses the pond.
+    if (runtime.current.pondFrozen) {
+      return;
+    }
     const focused = performance.now() < runtime.current.focusUntil;
     uniforms.uFocus.value = focused ? 1 : 0;
     uniforms.uTime.value += dt * (focused ? TUNING.input.focusWaterSpeedMultiplier : 1);
@@ -2343,6 +2374,7 @@ function createRuntime(seed: string, spawnIndex = 0): Runtime {
     spawnIndex,
     realCueIndex: 0,
     restoring: false,
+    pondFrozen: false,
     minFps: TUNING.performance.fpsRecovery,
     fpsSamples: [],
     lowFpsSince: 0,
@@ -2828,12 +2860,22 @@ function lureGlyph(id: LureId) {
   );
 }
 
-function GearSelect({ gear, onSelect }: { gear: GearSelection; onSelect: (next: GearSelection) => void }) {
+function GearSelect({
+  gear,
+  onSelect,
+  explainerOpen,
+  onExplainerOpenChange
+}: {
+  gear: GearSelection;
+  onSelect: (next: GearSelection) => void;
+  explainerOpen: boolean;
+  onExplainerOpenChange: (open: boolean) => void;
+}) {
   // Minimal pre-cast picker (22_THE_GEAR): idle-only, no chrome, no modal, no labels.
   // The lone exception to "no labels" is an opt-in explainer behind a small ? — it
   // describes the *trade* each piece makes (never a stat or a tier), so the strip can
-  // stay wordless without the gear reading as arbitrary on first encounter.
-  const [explainerOpen, setExplainerOpen] = useState(false);
+  // stay wordless without the gear reading as arbitrary on first encounter. Open-state
+  // is owned by the parent because opening it pauses the pond (the runtime reads it).
   return (
     <div className="gear-select" data-testid="gear-select">
       <button
@@ -2842,7 +2884,7 @@ function GearSelect({ gear, onSelect }: { gear: GearSelection; onSelect: (next: 
         aria-label="What do rods and lures do?"
         aria-expanded={explainerOpen}
         onPointerDown={(event) => event.stopPropagation()}
-        onClick={() => setExplainerOpen((open) => !open)}
+        onClick={() => onExplainerOpenChange(!explainerOpen)}
       >
         ?
       </button>
