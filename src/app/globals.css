@@ -616,6 +616,81 @@ code {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Opt-in gear explainer (22_THE_GEAR): a small ? toggles a wordy panel so the
+   glyph strip can stay label-free without reading as arbitrary. Floats above the
+   strip; never reflows the glyph rows. */
+.gear-help {
+  align-self: flex-start;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(10, 14, 14, 0.42);
+  border: 1px solid rgba(200, 196, 178, 0.18);
+  color: rgba(200, 196, 178, 0.5);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gear-help.open {
+  color: var(--moonlight);
+  border-color: rgba(200, 196, 178, 0.6);
+  background: rgba(20, 28, 28, 0.6);
+}
+
+.gear-explainer {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  width: min(280px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(8, 12, 12, 0.86);
+  border: 1px solid rgba(200, 196, 178, 0.22);
+  color: rgba(200, 196, 178, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  animation: gear-fade-in 220ms ease-out;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.gear-explainer-lead {
+  margin: 0 0 10px;
+  color: rgba(200, 196, 178, 0.62);
+  font-style: italic;
+}
+
+.gear-explainer h3 {
+  margin: 8px 0 4px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(232, 200, 120, 0.8);
+  font-weight: 600;
+}
+
+.gear-explainer ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gear-explainer li {
+  margin: 0 0 3px;
+}
+
+.gear-explainer b {
+  color: var(--moonlight);
+  font-weight: 600;
+}
+
 .tension-bar-fill {
   position: absolute;
   left: 0;

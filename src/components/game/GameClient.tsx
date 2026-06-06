@@ -2830,8 +2830,44 @@ function lureGlyph(id: LureId) {
 
 function GearSelect({ gear, onSelect }: { gear: GearSelection; onSelect: (next: GearSelection) => void }) {
   // Minimal pre-cast picker (22_THE_GEAR): idle-only, no chrome, no modal, no labels.
+  // The lone exception to "no labels" is an opt-in explainer behind a small ? — it
+  // describes the *trade* each piece makes (never a stat or a tier), so the strip can
+  // stay wordless without the gear reading as arbitrary on first encounter.
+  const [explainerOpen, setExplainerOpen] = useState(false);
   return (
     <div className="gear-select" data-testid="gear-select">
+      <button
+        type="button"
+        className={`gear-help${explainerOpen ? ' open' : ''}`}
+        aria-label="What do rods and lures do?"
+        aria-expanded={explainerOpen}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={() => setExplainerOpen((open) => !open)}
+      >
+        ?
+      </button>
+      {explainerOpen ? (
+        <div
+          className="gear-explainer"
+          role="dialog"
+          aria-label="Rods and lures"
+          data-testid="gear-explainer"
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <p className="gear-explainer-lead">Pick before you cast. Each piece trades something — none is just better.</p>
+          <h3>Rods</h3>
+          <ul>
+            <li><b>Long</b> — reaches the far dark. The whole gamble.</li>
+            <li><b>Short</b> — lands near and exact, but the line snaps sooner.</li>
+          </ul>
+          <h3>Lures</h3>
+          <ul>
+            <li><b>Natural</b> — an even read of the water.</li>
+            <li><b>Popper</b> — a loud draw that pulls fish in, and spooks them just as fast.</li>
+            <li><b>Sinker</b> — a quiet draw; place it true and it won&rsquo;t scare a thing.</li>
+          </ul>
+        </div>
+      ) : null}
       <div className="gear-row" role="group" aria-label="Rod">
         {ROD_IDS.map((id) => (
           <button
