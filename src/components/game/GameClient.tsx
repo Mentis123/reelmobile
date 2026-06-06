@@ -1619,10 +1619,10 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
       <ambientLight intensity={0.9} />
       <directionalLight position={[2.4, 5, 3]} intensity={1.35} />
       <Backdrop />
-      <Moon />
+      <Moon runtime={runtime} />
       <PondWater runtime={runtime} normalMap={waterNormalTexture} />
       <WaterRipples ripples={ripples} />
-      <Reeds />
+      <Reeds runtime={runtime} />
       <Foreshore />
       {Array.from({ length: TUNING.world.fishMaxVisible }, (_, i) => (
         <mesh
@@ -1879,7 +1879,7 @@ function cueColor(ripple: Ripple): string {
   return '#d8d4c2';
 }
 
-function Reeds() {
+function Reeds({ runtime }: { runtime: React.MutableRefObject<Runtime> }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const reedPositions = useMemo(() => {
     const positions: Array<{ x: number; z: number; h: number; s: number }> = [];
@@ -1904,7 +1904,7 @@ function Reeds() {
   useFrame(({ clock }) => {
     const mesh = meshRef.current;
 
-    if (!mesh) {
+    if (!mesh || runtime.current.pondFrozen) {
       return;
     }
 
@@ -2136,13 +2136,13 @@ function createMoonTexture(): THREE.Texture {
 
 // The moon rises slowly through the session "like time is really passing".
 // A sprite in front of the treeline, climbing from near the crowns into the sky.
-function Moon() {
+function Moon({ runtime }: { runtime: React.MutableRefObject<Runtime> }) {
   const texture = useMemo(() => createMoonTexture(), []);
   const meshRef = useRef<THREE.Mesh>(null);
   const yRef = useRef<number>(TUNING.visual.moonStartY);
 
   useFrame((_, delta) => {
-    if (!meshRef.current) return;
+    if (!meshRef.current || runtime.current.pondFrozen) return;
     yRef.current = Math.min(TUNING.visual.moonRiseMaxY, yRef.current + delta * TUNING.visual.moonRiseMPerSec);
     meshRef.current.position.y = yRef.current;
   });
