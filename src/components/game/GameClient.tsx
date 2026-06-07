@@ -2899,14 +2899,14 @@ function GearSelect({
           <p className="gear-explainer-lead">Pick before you cast. Each piece trades something — none is just better.</p>
           <h3>Rods</h3>
           <ul>
-            <li><b>Long</b> — reaches the far dark. The whole gamble.</li>
-            <li><b>Short</b> — lands near and exact, but the line snaps sooner.</li>
+            <li><span className="gear-explainer-glyph" aria-hidden="true">{rodGlyph('long')}</span><span><b>Long</b> — reaches the far dark. The whole gamble.</span></li>
+            <li><span className="gear-explainer-glyph" aria-hidden="true">{rodGlyph('short')}</span><span><b>Short</b> — lands near and exact, but the line snaps sooner.</span></li>
           </ul>
           <h3>Lures</h3>
           <ul>
-            <li><b>Natural</b> — an even read of the water.</li>
-            <li><b>Popper</b> — a loud draw that pulls fish in, and spooks them just as fast.</li>
-            <li><b>Sinker</b> — a quiet draw; place it true and it won&rsquo;t scare a thing.</li>
+            <li><span className="gear-explainer-glyph" aria-hidden="true">{lureGlyph('natural')}</span><span><b>Natural</b> — an even read of the water.</span></li>
+            <li><span className="gear-explainer-glyph" aria-hidden="true">{lureGlyph('popper')}</span><span><b>Popper</b> — a loud draw that pulls fish in, and spooks them just as fast.</span></li>
+            <li><span className="gear-explainer-glyph" aria-hidden="true">{lureGlyph('sinker')}</span><span><b>Sinker</b> — a quiet draw; place it true and it won&rsquo;t scare a thing.</span></li>
           </ul>
         </div>
       ) : null}
