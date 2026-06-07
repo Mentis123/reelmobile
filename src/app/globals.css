@@ -684,11 +684,34 @@ code {
 }
 
 .gear-explainer li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   margin: 0 0 7px;
 }
 
 .gear-explainer li:last-child {
   margin-bottom: 0;
+}
+
+/* Mirror the selector glyphs inside the explainer so a description can be tied
+   to the mark it names. Same chip treatment as a resting .gear-glyph. */
+.gear-explainer-glyph {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  margin-top: 1px;
+  border-radius: 8px;
+  background: rgba(20, 28, 28, 0.6);
+  border: 1px solid rgba(200, 196, 178, 0.18);
+  color: var(--moonlight);
+}
+
+.gear-explainer-glyph svg {
+  width: 20px;
+  height: 20px;
 }
 
 .gear-explainer b {
