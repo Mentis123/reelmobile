@@ -172,6 +172,7 @@ code {
   font-size: 1.1rem;
   font-weight: 800;
   letter-spacing: 0.1em;
+  text-indent: 0.1em; /* offset trailing letter-spacing so the glyphs sit true-centre */
   text-transform: uppercase;
   text-align: center;
   white-space: nowrap;
