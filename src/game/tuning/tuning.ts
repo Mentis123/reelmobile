@@ -181,7 +181,7 @@ export const TUNING = {
     // Instant chunk of line (m) yanked in on the tap itself, on top of the pulse-window
     // pull, so a tap reads as an immediate jerk of the fish toward the rod (visual snap
     // of feedback). Clamped to the remaining distance in reelTap so it never overshoots.
-    tapReelImpulse: 0.12
+    tapReelImpulse: 0.16
   },
   line: {
     lineSegments: 10,
@@ -404,8 +404,8 @@ export const TUNING = {
     // tension still climbs continuously (the held-reel rise in updateFight), so
     // sustained rapid tapping stacks bursts on top of the rise and drives toward the
     // snap threshold — exactly the cadence skill (tap to gain line, pause to recover).
-    tensionPerTap: 0.16,
-    tensionTapDecayRate: 0.5,
+    tensionPerTap: 0.11,
+    tensionTapDecayRate: 0.9,
     tensionSafeHold: 0.48,
     tensionSweetSpotMin: 0.35,
     tensionSweetSpotMax: 0.68,
