@@ -154,15 +154,50 @@ code {
   text-decoration: none;
 }
 
+/* Prominent tap-to-start affordance: a breathing gold pill, not faint text, so the
+   call-to-action is unmistakable. The whole splash button stays tappable — this is the
+   visual cue, centred above the safe-area inset and above any canvas content. */
 .splash-hint {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: max(24px, env(safe-area-inset-bottom));
-  color: rgba(200, 196, 178, 0.78);
-  font-size: 0.86rem;
-  font-weight: 700;
+  left: 50%;
+  bottom: max(28px, calc(env(safe-area-inset-bottom) + 20px));
+  transform: translateX(-50%);
+  z-index: 50;
+  padding: 11px 24px;
+  border-radius: 999px;
+  background: rgba(17, 22, 22, 0.66);
+  border: 1px solid rgba(200, 168, 92, 0.55);
+  box-shadow: 0 0 18px rgba(200, 168, 92, 0.28);
+  color: var(--ui-gold);
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   text-align: center;
+  white-space: nowrap;
+  animation: splashHintPulse 1.7s ease-in-out infinite;
+}
+
+@keyframes splashHintPulse {
+  0%,
+  100% {
+    transform: translateX(-50%) scale(1);
+    opacity: 0.82;
+    box-shadow: 0 0 14px rgba(200, 168, 92, 0.22);
+  }
+  50% {
+    transform: translateX(-50%) scale(1.06);
+    opacity: 1;
+    box-shadow: 0 0 26px rgba(200, 168, 92, 0.45);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-hint {
+    animation: none;
+    transform: translateX(-50%);
+    opacity: 1;
+  }
 }
 
 .begin-gate,
@@ -537,10 +572,10 @@ code {
   animation: cuePromptTap 320ms ease-in-out infinite alternate;
 }
 
-.cue-prompt.hold {
+.cue-prompt.reel {
   color: var(--ui-gold);
   border: 1px solid rgba(200, 168, 92, 0.55);
-  animation: cuePromptHold 900ms ease-in-out infinite alternate;
+  animation: cuePromptReel 700ms ease-in-out infinite alternate;
 }
 
 .cue-prompt.ease {
@@ -554,9 +589,9 @@ code {
   to   { transform: translateX(-50%) scale(1.08); }
 }
 
-@keyframes cuePromptHold {
-  from { opacity: 0.6; }
-  to   { opacity: 1; }
+@keyframes cuePromptReel {
+  from { transform: translateX(-50%) scale(1); opacity: 0.72; }
+  to   { transform: translateX(-50%) scale(1.06); opacity: 1; }
 }
 
 .tension-bar {

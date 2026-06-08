@@ -124,6 +124,19 @@ export class ProceduralAudio {
     }
   }
 
+  // One discrete reel click for a single tap-to-reel pulse. Same crank-click timbre
+  // as the click loop, scaled by the last-seen tension so a tighter line clicks louder.
+  reelTick() {
+    const tensionFactor = Math.min(1, Math.max(0, this.reelLoopTension));
+    this.noiseBurst(
+      TUNING.audio.twitchMs,
+      TUNING.audio.reelClickGain + tensionFactor * TUNING.audio.rodLoadTickGain,
+      'bandpass',
+      TUNING.audio.reelClickFilterStartHz,
+      TUNING.audio.reelClickFilterEndHz
+    );
+  }
+
   private reelClickLoop() {
     const tensionFactor = Math.min(1, Math.max(0, this.reelLoopTension));
     this.noiseBurst(

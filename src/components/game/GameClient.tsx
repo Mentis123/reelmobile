@@ -63,7 +63,13 @@ type Runtime = {
   rodOffset: Vec2;
   rodTargetOffset: Vec2;
   rodControlActive: boolean;
+  // Tap-to-reel: `reeling` is now a transient per-tap PULSE, not a held flag. A tap
+  // sets reelPulseUntil = now + tapReelPulseMs; the frame loop derives
+  // `reeling = now < reelPulseUntil` so the existing reel pull / tension rise / reel
+  // audio all run for the brief pulse window, then stop until the next tap.
   reeling: boolean;
+  reelPulseUntil: number;
+  lastReelTapAt: number;
   lastBiteAt: number;
   lastTwitchAt: number | null;
   focusUntil: number;
@@ -189,7 +195,6 @@ export function GameClient() {
   const gameState = useGameStore((state) => state.gameState);
   const fishState = useGameStore((state) => state.fishState);
   const tension = useGameStore((state) => state.tension);
-  const reeling = useGameStore((state) => state.reeling);
   const lureState = useGameStore((state) => state.lureState);
   const debugMetrics = useGameStore((state) => state.debugMetrics);
   const glHandlersReady = useGameStore((state) => state.glHandlersReady);
@@ -382,6 +387,7 @@ export function GameClient() {
 
     runtime.current.state = { kind: 'result', outcome, storyText, shownAt: now, peakTension, catch: resultCatch };
     runtime.current.reeling = false;
+    runtime.current.reelPulseUntil = 0;
     runtime.current.tension = 0;
     runtime.current.lateHookUntil = 0;
     setReeling(false);
@@ -482,8 +488,7 @@ export function GameClient() {
     if (runtime.current.state.kind === 'hooked') {
       clearFocusHold();
       pointerRef.current.mode = 'reeling';
-      runtime.current.reeling = true;
-      setReeling(true);
+      reelTap();
       return;
     }
 
@@ -595,9 +600,11 @@ export function GameClient() {
       return;
     }
 
+    // Tap-to-reel: releasing the finger does NOT stop the reel. Each tap fired one
+    // discrete pulse on pointer-down; the pulse expires on its own in the frame loop
+    // (reelPulseUntil), so lifting up just ends this tap's pointer and the player taps
+    // again to keep the line coming.
     if (pointer?.mode === 'reeling' || runtime.current.state.kind === 'hooked') {
-      runtime.current.reeling = false;
-      setReeling(false);
       return;
     }
 
@@ -686,6 +693,47 @@ export function GameClient() {
     audio.current.castWhoosh(cast.power);
     setGameState(runtime.current.state);
   };
+
+  function reelTap() {
+    if (runtime.current.state.kind !== 'hooked') {
+      return;
+    }
+
+    const now = performance.now();
+    // Debounce a single physical tap firing twice (pointer jitter): one finger tap is
+    // one pulse. The cadence skill lives well above this floor.
+    if (now - runtime.current.lastReelTapAt < TUNING.input.tapReelMinIntervalMs) {
+      return;
+    }
+    runtime.current.lastReelTapAt = now;
+
+    // Instant tension burst (the jolt of cranking the handle) plus a reel pulse window
+    // during which updateFight keeps tension rising and updateHookedContactPoint pulls
+    // the fish in. Tapping again before the pulse expires stacks bursts toward the snap
+    // threshold; pausing lets tension bleed off (tensionTapDecayRate).
+    runtime.current.tension = clamp(runtime.current.tension + TUNING.tension.tensionPerTap, 0, 1);
+    runtime.current.reelPulseUntil = now + TUNING.input.tapReelPulseMs;
+    runtime.current.reeling = true;
+    setReeling(true);
+
+    // Immediate chunk of line yanked in on the tap itself (clamped to the remaining
+    // distance), so the fish visibly jerks rodward the instant you tap — the pulse
+    // window then keeps it coming for tapReelPulseMs. Mirrors updateHookedContactPoint.
+    const waterEntry = clampToFishableWater(rodTipForRuntime(runtime.current));
+    const toRod = sub(waterEntry, runtime.current.fish.position);
+    const distanceToRod = Math.hypot(toRod.x, toRod.z);
+    if (distanceToRod > 0) {
+      const pull = scale(normalize(toRod), Math.min(distanceToRod, TUNING.input.tapReelImpulse));
+      runtime.current.fish = {
+        ...runtime.current.fish,
+        position: add(runtime.current.fish.position, pull)
+      };
+      runtime.current.lurePos = { x: runtime.current.fish.position.x, z: runtime.current.fish.position.z };
+    }
+
+    audio.current.reelTick();
+    navigator.vibrate?.(TUNING.haptics.reelTap);
+  }
 
   function twitchLure() {
     if (!runtime.current.lureVisible || (runtime.current.state.kind !== 'lure_idle' && runtime.current.state.kind !== 'rod_control')) {
@@ -794,13 +842,17 @@ export function GameClient() {
   }, [viewport]);
 
   const biteHaloPos = gameState.kind === 'bite_window' ? overlay.lure : null;
-  const cuePrompt: { kind: 'tap' | 'hold' | 'ease'; text: string } | null =
+  // Tap-to-reel HUD: while hooked, prompt "Tap to reel" until the line nears the snap
+  // line, then flip to "Ease off" (stop tapping, let tension bleed). The prompt is NOT
+  // gated on the per-tap `reeling` pulse (that flickers every tap) — it shows whenever
+  // it's safe to keep cranking, so the instruction reads steady.
+  const cuePrompt: { kind: 'tap' | 'reel' | 'ease'; text: string } | null =
     gameState.kind === 'bite_window'
       ? { kind: 'tap', text: 'Tap!' }
       : gameState.kind === 'hooked' && tension > TUNING.ui.reelHintTensionWarn
         ? { kind: 'ease', text: 'Ease off' }
-        : gameState.kind === 'hooked' && !reeling
-          ? { kind: 'hold', text: 'Hold to reel' }
+        : gameState.kind === 'hooked'
+          ? { kind: 'reel', text: 'Tap to reel' }
           : null;
   const showTensionBar = gameState.kind === 'hooked' || gameState.kind === 'rod_control';
 
@@ -1142,6 +1194,7 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
   const setFishState = useGameStore((state) => state.setFishState);
   const setGameState = useGameStore((state) => state.setGameState);
   const setTension = useGameStore((state) => state.setTension);
+  const setReeling = useGameStore((state) => state.setReeling);
   const setLureState = useGameStore((state) => state.setLureState);
   const setDebugMetrics = useGameStore((state) => state.setDebugMetrics);
   const setGlHandlersReady = useGameStore((state) => state.setGlHandlersReady);
@@ -1268,6 +1321,14 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
           x: current.lurePos.x + (current.fish.position.x - current.lurePos.x) * hookImpulse * biteContactBlend(current.fish),
           z: current.lurePos.z + TUNING.lure.lureHookJerkDistanceM * hookImpulse
         };
+      }
+      // Tap-to-reel: a tap set reelPulseUntil; `reeling` is true only inside that
+      // pulse window. updateFight + updateHookedContactPoint read this flag, so each
+      // tap reels in / raises tension for the pulse, then it lapses until the next tap.
+      const wasReeling = current.reeling;
+      current.reeling = now < current.reelPulseUntil;
+      if (wasReeling && !current.reeling) {
+        setReeling(false);
       }
       updateFight(current, dt, onResult, audio.current);
       if (current.tension > TUNING.tension.splashHighTension && now > current.nextStruggleRippleAt) {
@@ -1608,7 +1669,10 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
     setRodOffset(current.rodOffset);
     setFishState(current.fish.state);
     setTension(current.tension);
-    audio.current.updateLoops(current.tension, current.reeling || current.rodControlActive, current.rodControlActive);
+    // Tap-to-reel uses a discrete reelTick() per tap, so the continuous reel-click LOOP
+    // is now driven only by rod-control handling — not the brief per-tap pulse — to
+    // avoid doubling a click on top of each tap's tick.
+    audio.current.updateLoops(current.tension, current.rodControlActive, current.rodControlActive);
     updatePerformance(current, dt, gl, setPixelRatio, setDebugMetrics, recordPerf, recordPixelRatioDegradation);
   });
 
@@ -2360,6 +2424,8 @@ function createRuntime(seed: string, spawnIndex = 0): Runtime {
     rodTargetOffset: { x: 0, z: 0 },
     rodControlActive: false,
     reeling: false,
+    reelPulseUntil: 0,
+    lastReelTapAt: 0,
     lastBiteAt: 0,
     lastTwitchAt: null,
     focusUntil: 0,
@@ -2414,9 +2480,16 @@ function updateFight(runtime: Runtime, dt: number, onResult: SceneProps['onResul
   const fishPull = runtime.fish.state.kind === 'hooked'
     ? runtime.fish.state.rage * species.hookedPullMultiplier * personalityPull
     : TUNING.fish.personalityScalar;
+  // Tap-to-reel tension model. `reeling` is the brief per-tap pulse window (set in
+  // reelTap, expired in the frame loop). Inside the pulse, tension still climbs
+  // continuously (the fish fights as you crank) on top of the instant per-tap burst
+  // reelTap already applied — so sustained rapid tapping stacks toward the snap line.
+  // Out of pulse, tension bleeds off at tensionTapDecayRate, so pausing your cadence
+  // is what saves the line. (Faster than the old tensionFallRate hold-release fall,
+  // because a tap injects a discrete jolt that needs to clear before the next tap.)
   const rise = runtime.reeling
     ? (TUNING.tension.tensionRiseRate + TUNING.tension.tensionReelBoost + fishPull * TUNING.tension.tensionBurstRate) * dt
-    : -TUNING.tension.tensionFallRate * dt;
+    : -TUNING.tension.tensionTapDecayRate * dt;
   runtime.tension = clamp(runtime.tension + rise, 0, 1);
 
   if (!runtime.reeling && runtime.tension < TUNING.tension.lineSlackEscapeThreshold) {

@@ -168,7 +168,20 @@ export const TUNING = {
     focusDurationMs: 1800,
     focusCooldownMs: 4000,
     focusGlareReduction: 0.6,
-    focusWaterSpeedMultiplier: 0.7
+    focusWaterSpeedMultiplier: 0.7,
+    // Tap-to-reel (replaces hold-to-reel). Each tap on a hooked fish fires one reel
+    // pulse: a short window during which the existing reel pull (updateHookedContact-
+    // Point) and the tension rise (updateFight) run, plus an instant tension burst.
+    // Between taps the pulse expires and tension bleeds off — cadence is the skill.
+    // tapReelPulseMs is how long one tap keeps the line coming in; keep it short so a
+    // single tap is a discrete chunk of line, not a sustained hold. tapReelMinIntervalMs
+    // debounces a physical double-fire (one finger tap = one pulse).
+    tapReelPulseMs: 180,
+    tapReelMinIntervalMs: 60,
+    // Instant chunk of line (m) yanked in on the tap itself, on top of the pulse-window
+    // pull, so a tap reads as an immediate jerk of the fish toward the rod (visual snap
+    // of feedback). Clamped to the remaining distance in reelTap so it never overshoots.
+    tapReelImpulse: 0.12
   },
   line: {
     lineSegments: 10,
@@ -385,6 +398,14 @@ export const TUNING = {
     tensionReelBoost: 0.32,
     tensionBurstRate: 0.22,
     tensionSlackFallRate: 0.42,
+    // Tap-to-reel tension model. Each tap adds tensionPerTap instantly (the jolt of
+    // cranking the handle); between taps tension falls at tensionTapDecayRate so a
+    // pause lets the line bleed off before it snaps. During a tap's pulse window
+    // tension still climbs continuously (the held-reel rise in updateFight), so
+    // sustained rapid tapping stacks bursts on top of the rise and drives toward the
+    // snap threshold — exactly the cadence skill (tap to gain line, pause to recover).
+    tensionPerTap: 0.16,
+    tensionTapDecayRate: 0.5,
     tensionSafeHold: 0.48,
     tensionSweetSpotMin: 0.35,
     tensionSweetSpotMax: 0.68,
@@ -508,6 +529,8 @@ export const TUNING = {
     nibbleTick: [15],
     hookset: [20, 40, 20],
     tensionPulse: [30],
+    // One crisp tick per reel tap — immediate "the crank caught" feedback.
+    reelTap: [12],
     lineSnap: [80],
     catch: [10, 30, 10, 30, 60],
     missed: [10],
