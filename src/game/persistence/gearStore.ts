@@ -37,7 +37,12 @@ export function setGear(selection: GearSelection): void {
   }
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(selection));
-  } catch {
-    // ignore quota / availability errors — gear is non-critical
+  } catch (error) {
+    // Gear is non-critical, but name the cause so support reports are diagnosable.
+    if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+      console.warn('[gear] localStorage quota exceeded; selection not saved.');
+    } else {
+      console.warn('[gear] localStorage unavailable (private mode?); selection not saved.');
+    }
   }
 }

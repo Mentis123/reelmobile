@@ -261,6 +261,26 @@ export function GameClient() {
     };
   }, []);
 
+  // Audio lifecycle (06_MOBILE_WEB_CONSTRAINTS): suspend the AudioContext when
+  // the tab is backgrounded (battery; iOS audio-session courtesy) and resume on
+  // return; tear the whole context down on unmount so the looping ambient
+  // source doesn't outlive the /game route.
+  useEffect(() => {
+    const instance = audio.current;
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        void instance.suspend();
+      } else if (startedRef.current) {
+        void instance.resume();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      instance.dispose();
+    };
+  }, []);
+
   useEffect(() => {
     const root = rootRef.current;
 
@@ -339,7 +359,10 @@ export function GameClient() {
       return;
     }
 
-    const now = Date.now();
+    // Two clocks, deliberately: Date.now() is the wall-clock persistence
+    // timestamp (journal `at`); performance.now() is the monotonic simulation
+    // clock (durations, state timing) immune to NTP/clock adjustments mid-fight.
+    const simNow = performance.now();
     let storyText = failureStory(outcome);
     let resultCatch: ResultCatch | undefined;
     audio.current.stopLoops();
@@ -347,13 +370,13 @@ export function GameClient() {
     if (outcome === 'catch') {
       const catchEntry: Catch = {
         id: createId(),
-        at: now,
+        at: Date.now(),
         species: runtime.current.fish.instance.species,
         sizeScore: clamp(peakTension, TUNING.fish.catchMinSizeScore, TUNING.fish.catchMaxSizeScore),
         // The lure this fish was actually caught on (22_THE_GEAR) — a flat journal
         // attribute, never a coverage/completion grid (14_DO_NOT_BUILD).
         lure: runtime.current.lureId,
-        durationMs: now - hookedAt,
+        durationMs: Math.max(0, Math.round(simNow - hookedAt)),
         peakTension,
         nearSnaps,
         storyText: ''
@@ -374,7 +397,7 @@ export function GameClient() {
       navigator.vibrate?.(TUNING.haptics.catch);
     } else {
       const failure: Failure = {
-        at: now,
+        at: Date.now(),
         kind: outcome,
         context: {
           fishSpecies: runtime.current.fish.instance.species,
@@ -385,7 +408,7 @@ export function GameClient() {
       track({ type: 'failure', failure });
     }
 
-    runtime.current.state = { kind: 'result', outcome, storyText, shownAt: now, peakTension, catch: resultCatch };
+    runtime.current.state = { kind: 'result', outcome, storyText, shownAt: simNow, peakTension, catch: resultCatch };
     runtime.current.reeling = false;
     runtime.current.reelPulseUntil = 0;
     runtime.current.tension = 0;
@@ -628,7 +651,7 @@ export function GameClient() {
       runtime.current.nextSurgeAt = scheduleNextSurge(runtime.current, performance.now());
       runtime.current.state = {
         kind: 'hooked',
-        hookedAt: Date.now(),
+        hookedAt: performance.now(),
         stamina: TUNING.fish.hookedInitialStamina,
         slackMs: 0,
         nearSnaps: 0,
@@ -675,7 +698,7 @@ export function GameClient() {
     }
 
     const cast = computeCast(pointer.startX, pointer.startY, event.clientX, event.clientY);
-    const now = Date.now();
+    const now = performance.now();
     runtime.current.state = {
       kind: 'casting',
       from: TUNING.world.rodTip,
@@ -768,7 +791,7 @@ export function GameClient() {
     track({ type: 'hook_attempt', result: kind === 'missed_early' ? 'early' : 'late' });
     audio.current.fishSplash(TUNING.audio.missedSplashIntensity);
     navigator.vibrate?.(TUNING.haptics.missed);
-    finishResult(kind, runtime.current.tension, 0, Date.now());
+    finishResult(kind, runtime.current.tension, 0, performance.now());
   }
 
   function addRipple(pos: Vec2, radius: number, falseCue: boolean, cue: FishCueKind = 'ripple') {
@@ -816,7 +839,7 @@ export function GameClient() {
       ? TUNING.line.lineTautColour
       : TUNING.line.lineSlackColour;
   const hookImpulse = gameState.kind === 'hooked'
-    ? Math.max(0, 1 - (Date.now() - gameState.hookedAt) / TUNING.timing.hookJerkMs)
+    ? Math.max(0, 1 - (performance.now() - gameState.hookedAt) / TUNING.timing.hookJerkMs)
     : 0;
   const lineWidth = (tension > effNearSnapThreshold
     ? TUNING.line.lineSnapWidthPx
@@ -976,7 +999,10 @@ export function GameClient() {
       })}
 
       {cuePrompt ? (
-        <div className={`cue-prompt ${cuePrompt.kind}`} data-testid="cue-prompt">
+        // role=status/aria-live: the prompt is the game's only textual
+        // instruction stream ("Tap!", "Ease off") — announce it to screen
+        // readers instead of leaving the canvas game silent.
+        <div className={`cue-prompt ${cuePrompt.kind}`} data-testid="cue-prompt" role="status" aria-live="polite">
           {cuePrompt.text}
         </div>
       ) : null}
@@ -1012,8 +1038,12 @@ export function GameClient() {
           }}
           onPointerUp={(event) => {
             event.stopPropagation();
-            advanceSplash();
           }}
+          // onClick is the SOLE advance trigger (covers touch, mouse and
+          // keyboard). Advancing from onPointerUp as well double-fired per
+          // tap on Chromium: pointerup advanced to the credits screen, then
+          // the same tap's synthesized click advanced again through the
+          // re-rendered closure — skipping the credits screen entirely.
           onClick={advanceSplash}
           data-testid="tap-to-begin"
         >
@@ -1026,16 +1056,18 @@ export function GameClient() {
           <span className="splash-hint">Tap to continue</span>
         </button>
       ) : (
-        <button
+        // A div, not a <button>: the card nests links and OfflineStatus's
+        // clear-cache button, and interactive elements inside a <button> are
+        // invalid HTML (React hydration warning, broken a11y tree). The whole
+        // screen stays tappable via onClick; the "Tap to start" pill below is
+        // the real, keyboard-focusable button.
+        <div
           className="splash-credit-screen"
-          type="button"
-          aria-label="Enter the pond"
           onPointerDown={(event) => {
             event.stopPropagation();
           }}
           onPointerUp={(event) => {
             event.stopPropagation();
-            begin();
           }}
           onClick={begin}
           data-testid="tap-to-begin"
@@ -1067,8 +1099,10 @@ export function GameClient() {
             </span>
             <OfflineStatus />
           </span>
-          <span className="splash-hint">Tap to start</span>
-        </button>
+          <button type="button" className="splash-hint" aria-label="Enter the pond" onClick={begin}>
+            Tap to start
+          </button>
+        </div>
       )}
 
       {gameState.kind === 'result' ? (
@@ -1202,6 +1236,12 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
   const recordPixelRatioDegradation = useSessionStore((state) => state.recordPixelRatioDegradation);
   const recordGlContextLoss = useSessionStore((state) => state.recordGlContextLoss);
   const focusActiveRef = useRef(false);
+  const lastSentTensionRef = useRef(0);
+  // Reused screen-projection buffer for the line overlay: the points are
+  // mutated in place each frame instead of allocating segments+1 fresh objects
+  // per frame (GC pressure in the hot loop). setOverlay still receives a new
+  // wrapper object, which is what triggers the React update.
+  const linePointsBufferRef = useRef<ScreenPoint[]>([]);
 
   useEffect(() => {
     camera.lookAt(new THREE.Vector3(...TUNING.world.cameraTarget));
@@ -1243,10 +1283,14 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
     };
   }, [gl, onRestoringChange, recordGlContextLoss, runtime, setGlHandlersReady]);
 
-  useFrame((_, dt) => {
+  useFrame((_, rawDt) => {
     if (!started || runtime.current.restoring) {
       return;
     }
+
+    // Clamp runaway frames (tab switch back, GC pause): one huge dt would
+    // tunnel through bite windows or snap the line in a single step.
+    const dt = Math.min(rawDt, TUNING.timing.maxFrameDtSeconds);
 
     // Reading the rod/lure explainer pauses the pond — freeze the whole sim so the
     // water and fish hold still. Only ever set during scouting, where nothing
@@ -1270,7 +1314,7 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
     }
 
     if (gameState.kind === 'casting') {
-      const t = clamp((Date.now() - gameState.startedAt) / gameState.flightMs, 0, 1);
+      const t = clamp((now - gameState.startedAt) / gameState.flightMs, 0, 1);
       current.lurePos = lerpVec(gameState.from, gameState.target, t);
       current.lureY = TUNING.world.lureSurfaceY + Math.sin(Math.PI * t) * TUNING.input.castArcHeightM * gameState.power;
       setLureState('casting');
@@ -1304,8 +1348,11 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
       current.lureY = Math.max(TUNING.world.lureSinkDepthY, current.lureY - TUNING.lure.lureSinkRate * lureMods(current.lureId).sinkMult * dt);
       updateRodControl(current, dt);
       if (gameState.kind === 'rod_control') {
+        // Keep the runtime's own state fresh, but don't push it through the
+        // store: nothing in React reads lurePos/load, only `.kind` (which is
+        // unchanged here), and a per-frame setGameState re-renders every
+        // subscriber at 60Hz for nothing.
         current.state = { ...gameState, lurePos: current.lurePos, load: current.tension };
-        setGameState(current.state);
       }
       setLureState(current.rodControlActive ? 'rod-pull' : now < current.lureMovedUntil ? 'twitch' : 'sink');
     } else if (gameState.kind === 'bite_window') {
@@ -1346,7 +1393,10 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
           }
         ]);
       }
-      setGameState(current.state);
+      // No setGameState here: while hooked, updateFight mutates slackMs /
+      // nearSnaps / peakTension every frame but React only reads `.kind` and
+      // `hookedAt` (both set once at hookset). The result transition publishes
+      // through finishResult.
     }
 
     if (now > current.nextRealCueAt) {
@@ -1402,7 +1452,7 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
       current.lateHookUntil = 0;
       audio.current.fishSplash(TUNING.audio.missedSplashIntensity);
       navigator.vibrate?.(TUNING.haptics.missed);
-      onResult('missed_late', current.tension, 0, Date.now());
+      onResult('missed_late', current.tension, 0, now);
       return;
     }
 
@@ -1595,12 +1645,20 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
 
     const projVec = projVecRef.current;
     const lineSagBase = (1 - visualLineTensionFor(current.tension)) * TUNING.world.lineSagAmplitudeY;
-    const linePoints: ScreenPoint[] = current.line.points.map((point, index) => {
+    const linePoints = linePointsBufferRef.current;
+    if (linePoints.length !== current.line.points.length) {
+      linePoints.length = 0;
+      for (let i = 0; i < current.line.points.length; i += 1) {
+        linePoints.push({ x: 0, y: 0 });
+      }
+    }
+    for (let index = 0; index < current.line.points.length; index += 1) {
+      const point = current.line.points[index];
       const t = index / (current.line.points.length - 1);
       const segmentY = lerp(TUNING.world.rodTipY, current.lureY, t) - Math.sin(t * Math.PI) * lineSagBase;
       projVec.set(point.pos.x, segmentY, point.pos.z);
-      return projectVecToScreen(projVec, camera, size);
-    });
+      projectVecToScreenInto(projVec, camera, size, linePoints[index]);
+    }
 
     const bend = rodTipFor(current.tension, hookImpulseFor(current, now));
     // Aim-sway: while choosing a cast, the visual rod tip leans toward the aim
@@ -1667,8 +1725,18 @@ function GameScene({ started, runtime, audio, setOverlay, setRipples, ripples, s
 
     setOverlay({ linePoints, rodTip: rodTipScreen, lure: lureScreen, aimTarget: aimTargetScreen, aimRingRx, aimRingRy });
     setRodOffset(current.rodOffset);
-    setFishState(current.fish.state);
-    setTension(current.tension);
+    // Publish fish state only on kind transitions — the UI reads `.kind` alone
+    // (data attribute + debug HUD), and per-frame pushes re-render subscribers
+    // at 60Hz over a `sinceMs` counter nothing displays.
+    if (current.fish.state.kind !== previousFishKind) {
+      setFishState(current.fish.state);
+    }
+    // Tension drives the HUD bar and line colour; quantize updates below the
+    // threshold of a visible change (~0.4% of the bar) instead of 60Hz pushes.
+    if (Math.abs(current.tension - lastSentTensionRef.current) > 0.004) {
+      lastSentTensionRef.current = current.tension;
+      setTension(current.tension);
+    }
     // Tap-to-reel uses a discrete reelTick() per tap, so the continuous reel-click LOOP
     // is now driven only by rod-control handling — not the brief per-tap pulse — to
     // avoid doubling a click on top of each tap's tick.
@@ -2761,6 +2829,13 @@ function projectVecToScreen(vec: THREE.Vector3, camera: THREE.Camera, size: { wi
     x: (vec.x * 0.5 + 0.5) * size.width,
     y: (-vec.y * 0.5 + 0.5) * size.height
   };
+}
+
+// Allocation-free variant for the per-frame line projection: writes into `out`.
+function projectVecToScreenInto(vec: THREE.Vector3, camera: THREE.Camera, size: { width: number; height: number }, out: ScreenPoint): void {
+  vec.project(camera);
+  out.x = (vec.x * 0.5 + 0.5) * size.width;
+  out.y = (-vec.y * 0.5 + 0.5) * size.height;
 }
 
 function visualLineTensionFor(tension: number): number {

@@ -35,6 +35,13 @@ async function fileHash(path) {
   return createHash('sha256').update(buf).digest('hex').slice(0, 12);
 }
 
+// Large decorative images excluded from install-time precache: the splash PNG
+// alone is ~2.1MB — the bulk of the install payload — and it's only needed on
+// the first screen, where the runtime cache picks it up on first view anyway.
+// Precache stays lean (fast install on cell connections); offline-after-first-
+// visit behaviour is unchanged.
+const PRECACHE_EXCLUDE = new Set(['/images/reel-mobile-splash.png']);
+
 async function collectAssetUrls() {
   const roots = [
     { dir: assetsDir, urlBase: 'assets' },
@@ -52,7 +59,7 @@ async function collectAssetUrls() {
       ...files.map((p) => '/' + posix.join(root.urlBase, relative(root.dir, p).split(/[\\/]+/).join('/')))
     );
   }
-  return urls.sort();
+  return urls.filter((url) => !PRECACHE_EXCLUDE.has(url)).sort();
 }
 
 async function staticPublicUrls() {
@@ -222,7 +229,11 @@ async function networkFirst(request) {
   try {
     const response = await fetch(request);
     if (response && response.ok) {
-      cache.put(request, response.clone()).catch(() => {});
+      // Key HTML by pathname, not full URL: every distinct ?seed= would
+      // otherwise add a permanent runtime-cache entry (unbounded growth for a
+      // handful of real routes). The offline fallback below already matches
+      // with ignoreSearch, so dropping the query loses nothing.
+      cache.put(new URL(request.url).pathname, response.clone()).catch(() => {});
     }
     return response;
   } catch (err) {

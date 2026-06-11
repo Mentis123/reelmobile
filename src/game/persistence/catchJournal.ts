@@ -1,4 +1,5 @@
 import type { Catch } from '@/game/persistence/sessionStore';
+import { track } from '@/game/telemetry/track';
 
 // Append-only catch journal persisted to localStorage, per 15_TELEMETRY_AND_SESSION.
 // The in-memory sessionStore resets every page load; this is what survives so the
@@ -26,9 +27,17 @@ export function getJournal(): Journal {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return emptyJournal();
-    const parsed = JSON.parse(raw) as Partial<Journal>;
-    // Unknown/breaking schema → start clean rather than render garbage.
-    if (parsed?.schemaVersion !== 1 || !Array.isArray(parsed.catches)) return emptyJournal();
+    return migrate(JSON.parse(raw) as Partial<Journal> & { schemaVersion?: number });
+  } catch {
+    return emptyJournal();
+  }
+}
+
+// Schema migration dispatch. Today there is only v1, but the dispatch exists so
+// the first real schema change writes a v(n)→v(n+1) step here instead of being
+// tempted to ship a breaking change that erases players' journals.
+function migrate(parsed: Partial<Journal> & { schemaVersion?: number }): Journal {
+  if (parsed?.schemaVersion === 1 && Array.isArray(parsed.catches)) {
     return {
       schemaVersion: 1,
       catches: parsed.catches as Catch[],
@@ -36,17 +45,24 @@ export function getJournal(): Journal {
       totalSessions: parsed.totalSessions ?? 0,
       firstSessionAt: parsed.firstSessionAt ?? 0
     };
-  } catch {
-    return emptyJournal();
   }
+  // Unknown/breaking schema → start clean rather than render garbage.
+  return emptyJournal();
 }
 
 function save(journal: Journal): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(journal));
-  } catch {
-    // Private mode / quota — fail silent; the journal is a nicety, never load-bearing.
+  } catch (error) {
+    // The journal is a nicety, never load-bearing — but a silent identical
+    // swallow makes "my journal disappeared" reports undiagnosable. Name the
+    // two real-world causes apart in the console.
+    if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+      console.warn('[journal] localStorage quota exceeded; catch not saved.');
+    } else {
+      console.warn('[journal] localStorage unavailable (private mode?); catch not saved.');
+    }
   }
 }
 
@@ -57,6 +73,7 @@ export function appendCatchToJournal(catchEntry: Catch): void {
   journal.catches.push(catchEntry);
   if (journal.catches.length > MAX_JOURNAL_CATCHES) {
     journal.catches = journal.catches.slice(-MAX_JOURNAL_CATCHES);
+    track({ type: 'journal_rotation' });
   }
   if (!journal.firstSessionAt) journal.firstSessionAt = catchEntry.at;
   save(journal);

@@ -44,10 +44,13 @@ export function SplashGate() {
           <span className="splash-hint">Tap to continue</span>
         </button>
       ) : (
-        <button
+        // A div, not a <button>: the card nests links and OfflineStatus's
+        // clear-cache button, and interactive elements inside a <button> are
+        // invalid HTML (React hydration warning, broken a11y tree). The whole
+        // screen stays tappable via onClick; the "Tap to start" pill below is
+        // the real, keyboard-focusable button.
+        <div
           className={`splash-credit-screen ${isFading ? "is-fading" : ""}`}
-          type="button"
-          aria-label="Enter the pond"
           onClick={advance}
         >
           <span className="splash-credit-card">
@@ -77,8 +80,10 @@ export function SplashGate() {
             </span>
             <OfflineStatus />
           </span>
-          <span className="splash-hint">Tap to start</span>
-        </button>
+          <button type="button" className="splash-hint" aria-label="Enter the pond" onClick={advance}>
+            Tap to start
+          </button>
+        </div>
       )}
     </main>
   );

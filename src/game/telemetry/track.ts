@@ -14,7 +14,10 @@ export type TrackEvent =
   | { type: 'pixel_ratio_degraded'; from: number; to: number }
   | { type: 'install_prompt_shown' }
   | { type: 'install_prompt_accepted' }
-  | { type: 'share_initiated' };
+  | { type: 'share_initiated' }
+  // The 500-entry journal cap rotated the oldest catch off — worth knowing if
+  // real players ever hit it before raising the cap or paginating the view.
+  | { type: 'journal_rotation' };
 
 export function track(event: TrackEvent): void {
   console.log('[track]', event);
