@@ -11,6 +11,7 @@ import { clamp, lerp, lerpVec } from '@/game/math/vec';
 import { createId, useSessionStore } from '@/game/persistence/sessionStore';
 import { updateVerletLine } from '@/game/physics/verletLine';
 import { useGameStore } from '@/game/state/gameStore';
+import { vibrate } from '@/game/haptics/haptics';
 import { TUNING } from '@/game/tuning/tuning';
 import { track } from '@/game/telemetry/track';
 import {
@@ -55,6 +56,12 @@ export function GameScene({ started, runtime, audio, setOverlay, setRipples, rip
   );
   const lureRef = useRef<THREE.Mesh>(null);
   const { camera, gl, size } = useThree();
+  const cameraShakenRef = useRef(false);
+  const reducedMotionRef = useRef(false);
+  useEffect(() => {
+    reducedMotionRef.current =
+      typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+  }, []);
   const projVecRef = useRef(new THREE.Vector3());
   const fishQuatTargetRef = useRef(new THREE.Quaternion());
   const fishQuatFlatRef = useRef(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2));
@@ -153,6 +160,25 @@ export function GameScene({ started, runtime, audio, setOverlay, setRipples, rip
     if (nextFocusActive !== focusActiveRef.current) {
       focusActiveRef.current = nextFocusActive;
       onFocusActiveChange(nextFocusActive);
+    }
+
+    // Surge camera shake: a fish surge (updateFight) jolts the camera for
+    // surgeShakeMs — a decaying lateral tremor so the spike lands physically,
+    // not just in the tension bar. Position-only (no re-lookAt): the slight
+    // aim wander IS the effect. Skipped under prefers-reduced-motion.
+    const shakeRemaining = current.surgeShakeUntil - now;
+    if (shakeRemaining > 0 && !reducedMotionRef.current) {
+      const decay = shakeRemaining / TUNING.ui.surgeShakeMs;
+      const amp = TUNING.ui.surgeShakeAmplitudeM * decay * decay;
+      camera.position.set(
+        TUNING.world.cameraPosition[0] + Math.sin(now * 0.085) * amp,
+        TUNING.world.cameraPosition[1] + Math.cos(now * 0.117) * amp * 0.6,
+        TUNING.world.cameraPosition[2]
+      );
+      cameraShakenRef.current = true;
+    } else if (cameraShakenRef.current) {
+      cameraShakenRef.current = false;
+      camera.position.set(...TUNING.world.cameraPosition);
     }
 
     if (gameState.kind === 'result') {
@@ -297,7 +323,7 @@ export function GameScene({ started, runtime, audio, setOverlay, setRipples, rip
     if (current.lateHookUntil > 0 && current.state.kind === 'lure_idle' && now > current.lateHookUntil) {
       current.lateHookUntil = 0;
       audio.current.fishSplash(TUNING.audio.missedSplashIntensity);
-      navigator.vibrate?.(TUNING.haptics.missed);
+      vibrate(TUNING.haptics.missed);
       onResult('missed_late', current.tension, 0, now);
       return;
     }
@@ -351,7 +377,7 @@ export function GameScene({ started, runtime, audio, setOverlay, setRipples, rip
         }
       ]);
       audio.current.nibbleTick();
-      navigator.vibrate?.(TUNING.haptics.nibbleTick);
+      vibrate(TUNING.haptics.nibbleTick);
       track({ type: 'bite_window_open' });
       setGameState(current.state);
     }

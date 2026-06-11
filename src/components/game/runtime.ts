@@ -7,6 +7,7 @@ import { DEFAULT_LURE_ID, DEFAULT_ROD_ID, rodMods } from '@/game/gear/gear';
 import { add, clamp, clampToPond, distance, lerp, lerpVec, normalize, scale, seededRandom, sub, type Vec2 } from '@/game/math/vec';
 import { createVerletLine } from '@/game/physics/verletLine';
 import { useGameStore } from '@/game/state/gameStore';
+import { vibrate } from '@/game/haptics/haptics';
 import { TUNING } from '@/game/tuning/tuning';
 import { track } from '@/game/telemetry/track';
 import type { DecorFish, Runtime, SceneProps, ScreenPoint } from '@/components/game/types';
@@ -62,6 +63,7 @@ export function createRuntime(seed: string, spawnIndex = 0): Runtime {
     nextFalseCueAt: nowMs() + lerp(TUNING.fish.cueFalseMinMs, TUNING.fish.cueFalseMaxMs, rng()),
     nextStruggleRippleAt: 0,
     nextSurgeAt: 0,
+    surgeShakeUntil: 0,
     lastRippleSweepAt: 0,
     spawnIndex,
     realCueIndex: 0,
@@ -97,9 +99,8 @@ export function updateFight(runtime: Runtime, dt: number, onResult: SceneProps['
       };
     }
     audio.fishSplash(species.surgeAudioIntensity);
-    if (typeof navigator !== 'undefined') {
-      navigator.vibrate?.(TUNING.haptics.fishSurge);
-    }
+    vibrate(TUNING.haptics.fishSurge);
+    runtime.surgeShakeUntil = now + TUNING.ui.surgeShakeMs;
     runtime.nextSurgeAt = scheduleNextSurge(runtime, now);
   }
 
@@ -150,14 +151,14 @@ export function updateFight(runtime: Runtime, dt: number, onResult: SceneProps['
 
   if (runtime.tension > effLineSnap) {
     audio.lineSnap();
-    navigator.vibrate?.(TUNING.haptics.lineSnap);
+    vibrate(TUNING.haptics.lineSnap);
     onResult('snap', runtime.state.peakTension, runtime.state.nearSnaps, runtime.state.hookedAt);
     return;
   }
 
   if (runtime.state.slackMs > TUNING.tension.slackEscapeWindowMs) {
     audio.escapeSplash();
-    navigator.vibrate?.(TUNING.haptics.escape);
+    vibrate(TUNING.haptics.escape);
     onResult('escape', runtime.state.peakTension, runtime.state.nearSnaps, runtime.state.hookedAt);
     return;
   }

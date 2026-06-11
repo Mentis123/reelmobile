@@ -64,6 +64,9 @@ export type Runtime = {
   nextFalseCueAt: number;
   nextStruggleRippleAt: number;
   nextSurgeAt: number;
+  // Set by updateFight when a fish surges; GameScene nudges the camera until
+  // this deadline for a physical jolt to match the audio/haptic spike.
+  surgeShakeUntil: number;
   lastRippleSweepAt: number;
   spawnIndex: number;
   realCueIndex: number;

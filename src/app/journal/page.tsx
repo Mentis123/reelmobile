@@ -44,11 +44,11 @@ export default function JournalPage() {
   const speciesCount = useMemo(() => new Set(catches.map((c) => c.species)).size, [catches]);
 
   const best = useMemo(() => {
-    let top: { len: number; species: SpeciesId } | null = null;
+    let top: { len: number; species: SpeciesId; entry: Catch } | null = null;
     for (const c of catches) {
       if (!isKnownSpecies(c.species)) continue;
       const len = trophyLengthCm(c.species, c.sizeScore);
-      if (!top || len > top.len) top = { len, species: c.species };
+      if (!top || len > top.len) top = { len, species: c.species, entry: c };
     }
     return top;
   }, [catches]);
@@ -66,11 +66,25 @@ export default function JournalPage() {
             {catches.length} landed · {speciesCount} {speciesCount === 1 ? 'kind' : 'kinds'}
           </p>
         ) : null}
-        {best ? (
-          <p className="journal-best">Best · {best.len} cm {speciesLabel(best.species)}</p>
-        ) : null}
         <Link href="/game" className="journal-back">Cast a line →</Link>
       </header>
+
+      {best ? (
+        // The biggest catch is the journal's hero — the trophy wall's centre
+        // piece, not a stat line. Personal recognition only (14_DO_NOT_BUILD).
+        <Link href={`/journal/${best.entry.id}`} className="journal-hero">
+          <div className="journal-hero-fish">
+            <FishPortrait species={best.species} sizeScore={best.entry.sizeScore} />
+          </div>
+          <div className="journal-hero-body">
+            <p className="journal-hero-eyebrow">Biggest catch</p>
+            <h2 className="journal-hero-name">{speciesLabel(best.species)}</h2>
+            <p className="journal-hero-meta">
+              {best.len} cm · {trophySizeWord(best.entry.sizeScore)} · {whenLabel(best.entry.at)}
+            </p>
+          </div>
+        </Link>
+      ) : null}
 
       {catches.length === 0 ? (
         <div className="journal-empty">

@@ -12,6 +12,11 @@ export type ResultCatch = {
   durationMs: number;
   nearSnaps: number;
   peakTension: number;
+  // Personal recognition only (NEVER a leaderboard — 14_DO_NOT_BUILD):
+  // 'first' = the player's first ever catch, 'overall' = the longest fish
+  // they've ever landed, 'species' = their biggest of this species. Computed
+  // against the local journal at the moment of the catch.
+  personalBest?: 'first' | 'overall' | 'species';
 };
 
 export type GameState =
