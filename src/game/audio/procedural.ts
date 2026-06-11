@@ -15,6 +15,24 @@ export class ProceduralAudio {
   private ambientSource: AudioBufferSourceNode | null = null;
   private reelTimer: number | null = null;
   private reelLoopTension = 0;
+  private muted = false;
+
+  // Player sound preference (settings strip). Ramped, not snapped, so toggling
+  // mid-ambience doesn't click; survives unlock() because unlock re-reads it.
+  setMuted(muted: boolean) {
+    this.muted = muted;
+    if (this.ctx && this.master) {
+      this.master.gain.setTargetAtTime(
+        muted ? 0 : clampGain(TUNING.audio.masterGain),
+        this.ctx.currentTime,
+        0.04
+      );
+    }
+  }
+
+  isMuted(): boolean {
+    return this.muted;
+  }
 
   async unlock() {
     if (!this.ctx) {
@@ -25,7 +43,7 @@ export class ProceduralAudio {
       this.sfx = this.ctx.createGain();
       // Clamp tuning-supplied gains so a tuning typo can't drive a bus past
       // unity and clip the output.
-      this.master.gain.value = clampGain(TUNING.audio.masterGain);
+      this.master.gain.value = this.muted ? 0 : clampGain(TUNING.audio.masterGain);
       this.ambient.gain.value = clampGain(TUNING.audio.ambientGain);
       this.sfx.gain.value = clampGain(TUNING.audio.sfxGain);
       this.ambient.connect(this.master);

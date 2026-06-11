@@ -126,7 +126,17 @@ export function CatchResultCard({
           <div className="result-trophy">
             <FishPortrait species={result.species as SpeciesId} sizeScore={result.sizeScore} />
           </div>
-          <p className="result-eyebrow">Landed</p>
+          {result.personalBest ? (
+            <p className="result-eyebrow result-eyebrow--best">
+              {result.personalBest === 'first'
+                ? 'Your first catch'
+                : result.personalBest === 'overall'
+                  ? 'Your biggest yet'
+                  : `Your biggest ${speciesLabel(result.species)} yet`}
+            </p>
+          ) : (
+            <p className="result-eyebrow">Landed</p>
+          )}
           <h2 className="result-headline">{speciesLabel(result.species)}</h2>
           <p className="result-meta">
             {trophyLengthCm(result.species as SpeciesId, result.sizeScore)} cm · {trophySizeWord(result.sizeScore)}

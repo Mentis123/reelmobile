@@ -9,6 +9,9 @@ import { OfflineStatus } from '@/components/pwa/OfflineStatus';
 import { ProceduralAudio } from '@/game/audio/procedural';
 import { type FishCueKind } from '@/game/fish/species';
 import { DEFAULT_LURE_ID, DEFAULT_ROD_ID, lureMods, rodMods } from '@/game/gear/gear';
+import { personalBestFor } from '@/game/fish/personalBest';
+import { setHapticsEnabled, vibrate } from '@/game/haptics/haptics';
+import { defaultPrefs, getPrefs, setPrefs, type Prefs } from '@/game/persistence/prefsStore';
 import { getGear, setGear, type GearSelection } from '@/game/persistence/gearStore';
 import { add, clamp, clampToPond, lerp, normalize, scale, sub, type Vec2 } from '@/game/math/vec';
 import { createId, dailySeed, type Catch, type Failure, useSessionStore } from '@/game/persistence/sessionStore';
@@ -106,6 +109,73 @@ export function GameClient() {
     stampGear();
   }, [stampGear]);
 
+  // Feel preferences (sound / haptics): loaded client-side like gear, applied
+  // to the audio bus and the central haptics gate immediately on change.
+  const [prefs, setPrefsState] = useState<Prefs>(defaultPrefs());
+  useEffect(() => {
+    const saved = getPrefs();
+    setPrefsState(saved);
+    audio.current.setMuted(!saved.audio);
+    setHapticsEnabled(saved.haptics);
+  }, []);
+  const togglePref = useCallback((key: 'audio' | 'haptics') => {
+    const next = { ...prefs, [key]: !prefs[key] };
+    setPrefsState(next);
+    setPrefs(next);
+    audio.current.setMuted(!next.audio);
+    setHapticsEnabled(next.haptics);
+    if (key === 'haptics' && next.haptics) {
+      // A single confirming pulse so re-enabling haptics answers in kind.
+      vibrate(15);
+    }
+  }, [prefs]);
+
+  // First-session coaching: two quiet, diegetic hints (read the water → cast;
+  // twitch the lure) shown once ever, then the pond goes wordless for good.
+  // The bite/fight prompts ("Tap!", "Ease off") are permanent HUD, not coaching.
+  const [coachHint, setCoachHint] = useState<string | null>(null);
+  const coachRef = useRef({ cast: false, twitch: false, done: false });
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem('reelmobile.coach.v1') === '1') {
+        coachRef.current.done = true;
+      }
+    } catch {
+      // Private mode: coach once per load instead.
+    }
+  }, []);
+  useEffect(() => {
+    if (!started || coachRef.current.done) {
+      return undefined;
+    }
+    const kind = gameState.kind;
+    if (kind === 'scouting' && !coachRef.current.cast) {
+      coachRef.current.cast = true;
+      setCoachHint('Read the water — drag to cast toward a ripple.');
+      return undefined;
+    }
+    if (kind === 'lure_idle' && !coachRef.current.twitch) {
+      coachRef.current.twitch = true;
+      setCoachHint('Tap to twitch the lure. Movement draws eyes.');
+      const timeout = window.setTimeout(() => setCoachHint(null), TUNING.ui.coachHintAutoHideMs);
+      return () => window.clearTimeout(timeout);
+    }
+    if (kind === 'aiming' || kind === 'casting' || kind === 'bite_window' || kind === 'hooked') {
+      setCoachHint(null);
+      return undefined;
+    }
+    if (kind === 'result') {
+      coachRef.current.done = true;
+      setCoachHint(null);
+      try {
+        window.localStorage.setItem('reelmobile.coach.v1', '1');
+      } catch {
+        // ignore
+      }
+    }
+    return undefined;
+  }, [gameState.kind, started]);
+
   // The rod/lure explainer is opened from the gear strip but it pauses the pond,
   // so the open-state lives here (not inside GearSelect): the runtime needs to see
   // it. Frozen only while the explainer is open AND we're scouting; the cleanup +
@@ -171,7 +241,7 @@ export function GameClient() {
     }
 
     const preventTouch = (event: TouchEvent) => {
-      if (event.target instanceof Element && event.target.closest('[data-testid="tap-to-begin"], [data-testid="result-card"], [data-testid="gear-select"]')) {
+      if (event.target instanceof Element && event.target.closest('[data-testid="tap-to-begin"], [data-testid="result-card"], [data-testid="gear-select"], [data-testid="prefs-strip"]')) {
         return;
       }
 
@@ -215,7 +285,7 @@ export function GameClient() {
     void document.documentElement.requestFullscreen?.().catch(() => undefined);
     const orientation = screen.orientation as (ScreenOrientation & { lock?: (orientation: 'portrait') => Promise<void> }) | undefined;
     void orientation?.lock?.('portrait').catch(() => undefined);
-    navigator.vibrate?.(TUNING.haptics.tapBegin);
+    vibrate(TUNING.haptics.tapBegin);
     sessionStore.startSession(seed);
     track({ type: 'session_start' });
     runtime.current.state = { kind: 'scouting', sinceMs: performance.now() };
@@ -265,18 +335,22 @@ export function GameClient() {
       };
       catchEntry.storyText = generateStory(catchEntry);
       storyText = catchEntry.storyText;
+      // Personal-best check happens BEFORE recordCatch appends this catch to
+      // the journal, so the comparison is against history only.
+      const personalBest = personalBestFor(catchEntry);
       resultCatch = {
         species: catchEntry.species,
         sizeScore: catchEntry.sizeScore,
         lure: catchEntry.lure,
         durationMs: catchEntry.durationMs,
         nearSnaps: catchEntry.nearSnaps,
-        peakTension: catchEntry.peakTension
+        peakTension: catchEntry.peakTension,
+        personalBest
       };
       sessionStore.recordCatch(catchEntry);
       track({ type: 'catch', catch: catchEntry });
       audio.current.catchChime();
-      navigator.vibrate?.(TUNING.haptics.catch);
+      vibrate(TUNING.haptics.catch);
     } else {
       const failure: Failure = {
         at: Date.now(),
@@ -543,7 +617,7 @@ export function GameClient() {
       audio.current.hooksetThunk();
       addRipple(runtime.current.lurePos, TUNING.lure.rippleRadiusOnTwitchM, false);
       addRipple(runtime.current.fish.position, TUNING.lure.rippleRadiusOnImpactM, false);
-      navigator.vibrate?.(TUNING.haptics.hookset);
+      vibrate(TUNING.haptics.hookset);
       setGameState(runtime.current.state);
       setFishState(runtime.current.fish.state);
       return;
@@ -637,7 +711,7 @@ export function GameClient() {
     }
 
     audio.current.reelTick();
-    navigator.vibrate?.(TUNING.haptics.reelTap);
+    vibrate(TUNING.haptics.reelTap);
   }
 
   function twitchLure() {
@@ -672,7 +746,7 @@ export function GameClient() {
   function resolveMiss(kind: 'missed_early' | 'missed_late') {
     track({ type: 'hook_attempt', result: kind === 'missed_early' ? 'early' : 'late' });
     audio.current.fishSplash(TUNING.audio.missedSplashIntensity);
-    navigator.vibrate?.(TUNING.haptics.missed);
+    vibrate(TUNING.haptics.missed);
     finishResult(kind, runtime.current.tension, 0, performance.now());
   }
 
@@ -761,6 +835,15 @@ export function GameClient() {
           : null;
   const showTensionBar = gameState.kind === 'hooked' || gameState.kind === 'rod_control';
 
+  // Fight drama: a red vignette breathes in from the screen edges as tension
+  // closes on the snap line — the danger should be felt at the edges of vision
+  // before the player ever reads the bar. Scaled to the EFFECTIVE threshold so
+  // the short rod's earlier snap point also warns earlier.
+  const dangerStart = effNearSnapThreshold * TUNING.ui.dangerVignetteStartRatio;
+  const dangerOpacity = gameState.kind === 'hooked'
+    ? clamp((tension - dangerStart) / Math.max(0.001, 1 - dangerStart), 0, 1)
+    : 0;
+
   return (
     <main
       ref={rootRef}
@@ -768,6 +851,7 @@ export function GameClient() {
       data-testid="game-route"
       data-game-state={gameState.kind}
       data-fish-state={fishState.kind}
+      data-started={started ? 'true' : 'false'}
       data-webgl-handlers={glHandlersReady ? 'ready' : 'pending'}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -889,6 +973,16 @@ export function GameClient() {
         </div>
       ) : null}
 
+      {coachHint ? (
+        <div className="coach-hint" role="status">
+          {coachHint}
+        </div>
+      ) : null}
+
+      {dangerOpacity > 0.02 ? (
+        <div className="danger-vignette" aria-hidden="true" style={{ opacity: dangerOpacity }} />
+      ) : null}
+
       {showTensionBar ? (
         <div className="tension-bar" aria-hidden="true">
           <div
@@ -908,6 +1002,34 @@ export function GameClient() {
 
       {started && gameState.kind === 'scouting' ? (
         <GearSelect gear={gear} onSelect={applyGear} explainerOpen={gearHelpOpen} onExplainerOpenChange={setGearHelpOpen} />
+      ) : null}
+
+      {started && gameState.kind === 'scouting' ? (
+        // Feel preferences, idle-only like the gear strip: two wordless glyphs
+        // (sound, haptics) tucked top-right. No settings page, no modal — the
+        // pond stays the interface (08_ART_DIRECTION).
+        <div className="prefs-strip" data-testid="prefs-strip">
+          <button
+            type="button"
+            className={`gear-glyph prefs-glyph${prefs.audio ? ' selected' : ''}`}
+            aria-pressed={prefs.audio}
+            aria-label={prefs.audio ? 'Turn sound off' : 'Turn sound on'}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => togglePref('audio')}
+          >
+            {soundGlyph(prefs.audio)}
+          </button>
+          <button
+            type="button"
+            className={`gear-glyph prefs-glyph${prefs.haptics ? ' selected' : ''}`}
+            aria-pressed={prefs.haptics}
+            aria-label={prefs.haptics ? 'Turn vibration off' : 'Turn vibration on'}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => togglePref('haptics')}
+          >
+            {hapticsGlyph(prefs.haptics)}
+          </button>
+        </div>
       ) : null}
 
       {started ? null : splashStage === 'primary' ? (
@@ -1077,6 +1199,40 @@ export function GameClient() {
       flightMs: lerp(TUNING.input.castFlightTimeMin, TUNING.input.castFlightTimeMax, power) * TUNING.timing.msPerSecond
     };
   }
+}
+
+// Wordless prefs glyphs, same abstract-mark language as the gear strip
+// (14_DO_NOT_BUILD: no skeuomorphic chrome). A slash through the mark = off.
+function soundGlyph(on: boolean) {
+  return (
+    <svg viewBox="0 0 28 28" width="24" height="24" aria-hidden="true">
+      <path d="M7 11v6h4l5 4V7l-5 4H7Z" fill="currentColor" />
+      {on ? (
+        <g fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+          <path d="M19.5 11a4.4 4.4 0 0 1 0 6" />
+          <path d="M22 8.6a8 8 0 0 1 0 10.8" opacity="0.55" />
+        </g>
+      ) : (
+        <path d="M19 11l6 6M25 11l-6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      )}
+    </svg>
+  );
+}
+
+function hapticsGlyph(on: boolean) {
+  return (
+    <svg viewBox="0 0 28 28" width="24" height="24" aria-hidden="true">
+      <rect x="10" y="6" width="8" height="16" rx="2.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      {on ? (
+        <g fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+          <path d="M6.4 10.5v7" />
+          <path d="M21.6 10.5v7" />
+        </g>
+      ) : (
+        <path d="M6.5 6.5l15 15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      )}
+    </svg>
+  );
 }
 
 function isRodTouch(screenX: number, screenY: number, viewport: ViewportSize): boolean {

@@ -559,7 +559,17 @@ export const TUNING = {
     worldProjectOffsetXRatio: 0.5,
     worldProjectOffsetYRatio: 0.66,
     hookJerkScreenPx: 22,
-    reelHintTensionWarn: 0.72
+    reelHintTensionWarn: 0.72,
+    // Fight drama (11_FAILURE_AESTHETICS adjacent — losing should LOOM first):
+    // a fish surge nudges the camera for surgeShakeMs, and a red vignette
+    // breathes in from the screen edges as tension closes on the snap line,
+    // starting at dangerVignetteStartRatio of the effective near-snap warning.
+    surgeShakeMs: 280,
+    surgeShakeAmplitudeM: 0.05,
+    dangerVignetteStartRatio: 0.9,
+    // First-session coaching: the twitch hint dismisses itself after this long
+    // so the water never stays captioned.
+    coachHintAutoHideMs: 5200
   }
 } as const;
 
