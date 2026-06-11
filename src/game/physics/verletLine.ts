@@ -10,82 +10,99 @@ export type VerletLine = {
   points: LinePoint[];
 };
 
+// Damping below is normalized to a 60Hz frame: pow(lineDamping, dt * 60) keeps
+// the energy loss per SECOND constant whatever the display refresh rate, so the
+// line feels the same on a 120Hz ProMotion iPhone as at 60Hz.
+const DAMPING_REFERENCE_HZ = 60;
+
 export function createVerletLine(anchor: Vec2, end: Vec2): VerletLine {
   const points: LinePoint[] = [];
 
   for (let index = 0; index <= TUNING.line.lineSegments; index += 1) {
     const t = index / TUNING.line.lineSegments;
     const pos = lerpVec(anchor, end, t);
-    points.push({ pos, prev: pos });
+    points.push({ pos: { ...pos }, prev: { ...pos } });
   }
 
   return { points };
 }
 
+// Mutates the line in place and returns it. This runs every frame of the render
+// loop — the previous immutable version allocated a fresh array plus ~3 objects
+// per point per frame (hundreds of short-lived objects at 60fps), which is
+// exactly the GC pressure the adaptive-DPR system then has to absorb as jank.
 export function updateVerletLine(line: VerletLine, anchor: Vec2, end: Vec2, dt: number, tension: number): VerletLine {
+  const points = line.points;
+  const last = points.length - 1;
   const visualTension = visualLineTension(tension);
-  const points = line.points.map((point, index) => {
+  const damping = Math.pow(TUNING.line.lineDamping, dt * DAMPING_REFERENCE_HZ);
+  const gravity = TUNING.line.lineGravity * TUNING.line.lineSlackGravityMultiplier * (1 - visualTension) * dt * dt;
+
+  for (let index = 0; index <= last; index += 1) {
+    const point = points[index];
+
     if (index === 0) {
-      return { pos: anchor, prev: anchor };
+      point.pos.x = anchor.x;
+      point.pos.z = anchor.z;
+      point.prev.x = anchor.x;
+      point.prev.z = anchor.z;
+      continue;
     }
 
-    if (index === line.points.length - 1) {
-      return { pos: end, prev: end };
+    if (index === last) {
+      point.pos.x = end.x;
+      point.pos.z = end.z;
+      point.prev.x = end.x;
+      point.prev.z = end.z;
+      continue;
     }
 
-    const velocity = {
-      x: (point.pos.x - point.prev.x) * TUNING.line.lineDamping,
-      z: (point.pos.z - point.prev.z) * TUNING.line.lineDamping
-    };
-    const gravity = TUNING.line.lineGravity * TUNING.line.lineSlackGravityMultiplier * (1 - visualTension) * dt * dt;
-    const pos = {
-      x: point.pos.x + velocity.x,
-      z: point.pos.z + velocity.z - gravity
-    };
-
-    return { pos, prev: point.pos };
-  });
+    const vx = (point.pos.x - point.prev.x) * damping;
+    const vz = (point.pos.z - point.prev.z) * damping;
+    point.prev.x = point.pos.x;
+    point.prev.z = point.pos.z;
+    point.pos.x += vx;
+    point.pos.z += vz - gravity;
+  }
 
   const segmentLength = distanceFor(anchor, end) / TUNING.line.lineSegments;
+  // < 1 iteration would silently disable the solver and let the points fly.
+  const iterations = Math.max(1, TUNING.line.lineConstraintIterations);
 
-  for (let pass = 0; pass < TUNING.line.lineConstraintIterations; pass += 1) {
-    points[0].pos = anchor;
-    points[points.length - 1].pos = end;
+  for (let pass = 0; pass < iterations; pass += 1) {
+    points[0].pos.x = anchor.x;
+    points[0].pos.z = anchor.z;
+    points[last].pos.x = end.x;
+    points[last].pos.z = end.z;
 
-    for (let index = 0; index < points.length - 1; index += 1) {
+    for (let index = 0; index < last; index += 1) {
       const current = points[index];
       const next = points[index + 1];
-      const delta = {
-        x: next.pos.x - current.pos.x,
-        z: next.pos.z - current.pos.z
-      };
-      const dist = Math.hypot(delta.x, delta.z) || segmentLength;
+      const deltaX = next.pos.x - current.pos.x;
+      const deltaZ = next.pos.z - current.pos.z;
+      const dist = Math.hypot(deltaX, deltaZ) || segmentLength;
       const difference = (dist - segmentLength) / dist;
-      const correction = {
-        x: delta.x * difference,
-        z: delta.z * difference
-      };
+      const correctionX = deltaX * difference;
+      const correctionZ = deltaZ * difference;
 
       if (index !== 0) {
-        current.pos = {
-          x: current.pos.x + correction.x * 0.5,
-          z: current.pos.z + correction.z * 0.5
-        };
+        current.pos.x += correctionX * 0.5;
+        current.pos.z += correctionZ * 0.5;
       }
 
-      if (index + 1 !== points.length - 1) {
-        next.pos = {
-          x: next.pos.x - correction.x * 0.5,
-          z: next.pos.z - correction.z * 0.5
-        };
+      if (index + 1 !== last) {
+        next.pos.x -= correctionX * 0.5;
+        next.pos.z -= correctionZ * 0.5;
       }
     }
   }
 
-  points[0].pos = anchor;
-  points[points.length - 1].pos = end;
+  points[0].pos.x = anchor.x;
+  points[0].pos.z = anchor.z;
+  points[last].pos.x = end.x;
+  points[last].pos.z = end.z;
 
-  return { points };
+  return line;
 }
 
 function visualLineTension(tension: number): number {

@@ -70,6 +70,21 @@ export function nextWanderTarget(rng: () => number): Vec2 {
   };
 }
 
+/**
+ * Evolve one fish for one frame. Pure: (input, snapshot) -> snapshot.
+ *
+ * State ladder (04_SPOTTING_AND_PERCEPTION / 01_GAME_SPEC):
+ *
+ *   wander --lure within noticeRadius--> notice --noticeWait--> approach
+ *     --within inspectOrbitRadius--> inspect --inspectDuration--> commit
+ *     --biteEta expires--> bite --hooked input--> hooked --stamina drained--> landed
+ *
+ *   bite --biteNoHookMs with no hookset--> flee --fleeDuration--> wander
+ *   any pre-hook state --lure moved inside fearRadius--> flee (spook)
+ *
+ * Durations scale by species multipliers and per-instance personality
+ * (hesitation). dt is SECONDS; nowMs is the simulation clock (performance.now).
+ */
 export function updateFish(input: FishUpdateInput, fish: FishSnapshot): FishSnapshot {
   const dtMs = input.dt * TUNING.timing.msPerSecond;
   const state = fish.state;
@@ -177,7 +192,11 @@ export function updateFish(input: FishUpdateInput, fish: FishSnapshot): FishSnap
   }
 
   const desired = scale(normalize(sub(target, fish.position)), speed);
-  const velocity = add(scale(fish.velocity, TUNING.line.lineDamping), scale(desired, input.dt));
+  // Frame-rate-normalized damping: pow keeps energy loss per second constant
+  // across 60Hz/120Hz displays (raw per-frame multipliers damp twice as fast
+  // per second at 120Hz, making fish feel sluggish on ProMotion screens).
+  const damping = Math.pow(TUNING.fish.velocityDamping, input.dt * 60);
+  const velocity = add(scale(fish.velocity, damping), scale(desired, input.dt));
   const position = add(fish.position, scale(velocity, input.dt));
 
   return {

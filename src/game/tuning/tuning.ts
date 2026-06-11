@@ -222,6 +222,11 @@ export const TUNING = {
   fish: {
     fishNoticeRadius: 2,
     fishFearRadius: 0.4,
+    // Per-frame velocity damping for fish movement, normalized to a 60Hz frame
+    // (applied as pow(damping, dt * 60) so the feel is identical at 120Hz).
+    // Previously this borrowed TUNING.line.lineDamping — its own constant now so
+    // tuning the fishing line can't silently change how fish swim.
+    velocityDamping: 0.98,
     biteWindowMs: 600,
     fishStaminaDrainRate: 0.1,
     personalityScalar: 0.18,
@@ -443,6 +448,10 @@ export const TUNING = {
   },
   timing: {
     msPerSecond: 1000,
+    // Ceiling on a single simulation step. A long frame (tab switch back, GC
+    // pause) otherwise delivers one huge dt that can tunnel straight through a
+    // bite window or snap the line in a single step.
+    maxFrameDtSeconds: 0.1,
     tapFadeMs: 600,
     wordmarkFadeMs: 800,
     resultTextDelayMs: 800,

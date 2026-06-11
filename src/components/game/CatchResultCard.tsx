@@ -87,6 +87,16 @@ export function CatchResultCard({
 
   const showTrophy = outcome === 'catch' && result && isKnownSpecies(result.species);
 
+  // Modal-like card: move focus into it on mount so keyboard/screen-reader
+  // users land on the result instead of staying lost on the canvas behind it.
+  // Inline embeds (journal detail page) are normal page content — skip there.
+  const cardRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!inline) {
+      cardRef.current?.focus();
+    }
+  }, [inline]);
+
   const [shareState, setShareState] = useState<'idle' | 'working' | 'shared' | 'downloaded' | 'failed'>('idle');
   const shareLabel =
     shareState === 'working' ? 'Sharing…'
@@ -101,7 +111,16 @@ export function CatchResultCard({
   };
 
   return (
-    <section className={classes} data-testid="result-card" onPointerDown={stop}>
+    <section
+      ref={cardRef}
+      className={classes}
+      data-testid="result-card"
+      onPointerDown={stop}
+      role={inline ? undefined : 'dialog'}
+      aria-modal={inline ? undefined : true}
+      aria-label={outcome === 'catch' ? 'Catch result' : 'Cast result'}
+      tabIndex={-1}
+    >
       {showTrophy && result ? (
         <>
           <div className="result-trophy">

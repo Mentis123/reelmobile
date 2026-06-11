@@ -163,6 +163,12 @@ code {
   bottom: max(28px, calc(env(safe-area-inset-bottom) + 20px));
   transform: translateX(-50%);
   z-index: 50;
+  /* Rendered as a <button> on the credits screen (the screen wrapper is a div
+     so it can legally contain links); neutralize UA button styling. */
+  font-family: inherit;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
   padding: 11px 24px;
   border-radius: 999px;
   background: rgba(17, 22, 22, 0.66);
@@ -1264,5 +1270,59 @@ code {
 
   .debug-hud {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Error boundary (app/error.tsx)
+--------------------------------------------------------------------------- */
+
+.error-shell {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+  background: radial-gradient(120% 100% at 50% 20%, var(--water-shallow), var(--water-deep) 70%);
+  color: var(--moonlight);
+  text-align: center;
+}
+
+.error-card h1 {
+  margin: 0 0 8px;
+  font-size: 1.4rem;
+}
+
+.error-card p {
+  margin: 0 0 22px;
+  opacity: 0.8;
+}
+
+.error-retry {
+  min-height: 44px;
+  padding: 10px 26px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-gold);
+  background: transparent;
+  color: var(--ui-gold);
+  font-size: 1rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced motion: flatten every looping/decorative animation, not just the
+   splash hint. Players who ask for less motion still get state changes (the
+   cue prompt appears/disappears; the tension bar fills) — just no pulsing.
+--------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .cue-prompt,
+  .bite-halo-ring,
+  .result-trophy,
+  .result-card,
+  .pwa-update-prompt,
+  .focus-ring,
+  .gear-select,
+  .gear-explainer,
+  .splash-credit-card {
+    animation: none !important;
   }
 }

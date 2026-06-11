@@ -21,6 +21,13 @@ function getLocalIpv4(): string | null {
 }
 
 export function GET(request: Request) {
+  // Dev-only: the LAN IP/port exist solely for the /dev QR phone-testing flow.
+  // In production there is no reason to disclose server network interfaces —
+  // DevGate already falls back to window.location when this returns non-OK.
+  if (process.env.NODE_ENV !== 'development') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   const url = new URL(request.url);
 
   return NextResponse.json({

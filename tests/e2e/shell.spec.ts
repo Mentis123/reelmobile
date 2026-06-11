@@ -1,5 +1,11 @@
 import { expect, type BrowserContext, test } from '@playwright/test';
 
+// Asserted against the build's own metadata so the spec tracks milestone bumps
+// instead of going stale (it previously hardcoded v0.3.1 strings long after
+// the v0.4 candidate shipped).
+import { checklists } from '../../src/game/dev/checklists';
+import { CURRENT_CANDIDATE_TAG, CURRENT_MILESTONE } from '../../src/lib/buildInfo';
+
 async function openRoute(context: BrowserContext, path: string) {
   const page = await context.newPage();
   const errors: string[] = [];
@@ -17,8 +23,8 @@ async function openRoute(context: BrowserContext, path: string) {
 test('M0 shell routes load', async ({ context }) => {
   const home = await openRoute(context, '/');
   const homePage = home.page;
-  await expect(homePage.getByRole('heading', { name: 'Reel Mobile' })).toBeVisible();
-  await expect(homePage.getByText('Tap to begin.')).toBeVisible();
+  await expect(homePage.getByRole('img', { name: 'Reel Mobile' })).toBeVisible();
+  await expect(homePage.getByText('Tap to continue')).toBeVisible();
   expect(home.errors).toEqual([]);
   await homePage.close();
 
@@ -35,8 +41,8 @@ test('M0 shell routes load', async ({ context }) => {
 
   const dev = await openRoute(context, '/dev');
   await expect(dev.page.getByRole('heading', { name: 'Dev Gate' })).toBeVisible();
-  await expect(dev.page.getByText('M3.1 fish feel-repair real-iPhone gate')).toBeVisible();
-  await expect(dev.page.getByText('v0.3.1-fish-feel-candidate')).toBeVisible();
+  await expect(dev.page.getByText(checklists[CURRENT_MILESTONE as keyof typeof checklists].title)).toBeVisible();
+  await expect(dev.page.getByText(CURRENT_CANDIDATE_TAG).first()).toBeVisible();
   expect(dev.errors).toEqual([]);
   await dev.page.close();
 });
@@ -51,6 +57,11 @@ test('M1 vertical slice smoke', async ({ page }) => {
 
   await page.goto('/game?debug=1', { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('tap-to-begin')).toBeVisible();
+  // Wait for hydration before tapping: the webgl-handlers attribute only
+  // flips to 'ready' from a useEffect, so it proves React owns the page. A
+  // pre-hydration tap lands on inert server-rendered DOM and is lost (flaky
+  // on a cold dev-server compile).
+  await expect(page.getByTestId('game-route')).toHaveAttribute('data-webgl-handlers', 'ready', { timeout: 30_000 });
   await page.getByTestId('tap-to-begin').tap();
   await expect(page.getByText('Build yours at Vibe Academy')).toBeVisible();
   await page.getByTestId('tap-to-begin').tap();

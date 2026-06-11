@@ -2,7 +2,7 @@
 /* eslint-disable */
 'use strict';
 
-const CACHE_VERSION = '1a66e2110d4e';
+const CACHE_VERSION = '4d9f0a1fd371';
 const CACHE_NAME = 'reel-precache-' + CACHE_VERSION;
 const RUNTIME_CACHE = 'reel-runtime-' + CACHE_VERSION;
 const PRECACHE_URLS = [
@@ -20,7 +20,6 @@ const PRECACHE_URLS = [
   "/game",
   "/icon-maskable.svg",
   "/icon.svg",
-  "/images/reel-mobile-splash.png",
   "/manifest.webmanifest"
 ];
 
@@ -125,7 +124,11 @@ async function networkFirst(request) {
   try {
     const response = await fetch(request);
     if (response && response.ok) {
-      cache.put(request, response.clone()).catch(() => {});
+      // Key HTML by pathname, not full URL: every distinct ?seed= would
+      // otherwise add a permanent runtime-cache entry (unbounded growth for a
+      // handful of real routes). The offline fallback below already matches
+      // with ignoreSearch, so dropping the query loses nothing.
+      cache.put(new URL(request.url).pathname, response.clone()).catch(() => {});
     }
     return response;
   } catch (err) {

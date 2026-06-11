@@ -2,12 +2,17 @@ import { TUNING } from '@/game/tuning/tuning';
 
 type AudioContextCtor = typeof AudioContext;
 
+function clampGain(gain: number): number {
+  return Math.min(1, Math.max(0, gain));
+}
+
 export class ProceduralAudio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private ambient: GainNode | null = null;
   private sfx: GainNode | null = null;
   private lineZip: { osc: OscillatorNode; gain: GainNode } | null = null;
+  private ambientSource: AudioBufferSourceNode | null = null;
   private reelTimer: number | null = null;
   private reelLoopTension = 0;
 
@@ -18,9 +23,11 @@ export class ProceduralAudio {
       this.master = this.ctx.createGain();
       this.ambient = this.ctx.createGain();
       this.sfx = this.ctx.createGain();
-      this.master.gain.value = TUNING.audio.masterGain;
-      this.ambient.gain.value = TUNING.audio.ambientGain;
-      this.sfx.gain.value = TUNING.audio.sfxGain;
+      // Clamp tuning-supplied gains so a tuning typo can't drive a bus past
+      // unity and clip the output.
+      this.master.gain.value = clampGain(TUNING.audio.masterGain);
+      this.ambient.gain.value = clampGain(TUNING.audio.ambientGain);
+      this.sfx.gain.value = clampGain(TUNING.audio.sfxGain);
       this.ambient.connect(this.master);
       this.sfx.connect(this.master);
       this.master.connect(this.ctx.destination);
@@ -28,6 +35,41 @@ export class ProceduralAudio {
     }
 
     await this.ctx.resume();
+  }
+
+  // Tab backgrounded: park the context so the ambient loop stops burning
+  // battery and yields the audio session (iOS) back to whatever else plays.
+  async suspend() {
+    if (this.ctx && this.ctx.state === 'running') {
+      await this.ctx.suspend().catch(() => undefined);
+    }
+  }
+
+  async resume() {
+    if (this.ctx && this.ctx.state === 'suspended') {
+      await this.ctx.resume().catch(() => undefined);
+    }
+  }
+
+  // Full teardown for unmount: stop loops and sources, close the context.
+  // The instance is reusable afterwards — unlock() rebuilds from scratch.
+  dispose() {
+    this.stopLoops();
+    if (this.ambientSource) {
+      try {
+        this.ambientSource.stop();
+      } catch {
+        // already stopped
+      }
+      this.ambientSource = null;
+    }
+    if (this.ctx) {
+      void this.ctx.close().catch(() => undefined);
+    }
+    this.ctx = null;
+    this.master = null;
+    this.ambient = null;
+    this.sfx = null;
   }
 
   beginConfirm() {
@@ -177,6 +219,9 @@ export class ProceduralAudio {
     source.connect(filter);
     filter.connect(this.ambient);
     source.start();
+    // Held so dispose() can stop the loop — an unstopped looping source keeps
+    // playing (and pins its buffer) for the life of the context.
+    this.ambientSource = source;
   }
 
   private tone(startHz: number, endHz: number, durationMs: number, type: OscillatorType, volume: number) {

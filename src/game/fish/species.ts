@@ -80,9 +80,11 @@ export function cueForReveal(
   return pickSpeciesCue(species, cueIndex);
 }
 
+// Computed once at module load — the weights are static tuning data.
+const TOTAL_SPAWN_WEIGHT = SPECIES_IDS.reduce((sum, species) => sum + speciesTuning(species).spawnWeight, 0);
+
 function pickSpecies(rng: () => number): SpeciesId {
-  const totalWeight = SPECIES_IDS.reduce((sum, species) => sum + speciesTuning(species).spawnWeight, 0);
-  let roll = rng() * totalWeight;
+  let roll = rng() * TOTAL_SPAWN_WEIGHT;
 
   for (const species of SPECIES_IDS) {
     roll -= speciesTuning(species).spawnWeight;
@@ -92,5 +94,8 @@ function pickSpecies(rng: () => number): SpeciesId {
     }
   }
 
-  return 'bronze_carp';
+  // Floating-point residue can leave roll marginally above zero after the last
+  // deduction; the roll belongs to the final species, not a hardcoded fallback
+  // that would silently bias the distribution.
+  return SPECIES_IDS[SPECIES_IDS.length - 1];
 }
