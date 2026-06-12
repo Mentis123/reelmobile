@@ -12,6 +12,9 @@ export type CatchCardData = {
   sizeScore: number;
   durationMs: number;
   nearSnaps: number;
+  // Carried from ResultCatch: lets the shared card brag on the player's
+  // behalf ("PERSONAL BEST") — their own history only, never a leaderboard.
+  personalBest?: 'first' | 'overall' | 'species';
 };
 
 function isKnownSpecies(species: string): species is SpeciesId {
@@ -78,9 +81,16 @@ export async function renderCatchCard(c: CatchCardData): Promise<Blob | null> {
   ctx.textAlign = 'center';
   const cx = W * 0.5;
 
-  ctx.fillStyle = 'rgba(200, 168, 92, 0.9)';
+  // The recognition line a friend actually sees: a personal best outranks a
+  // plain "landed" on the share itself.
+  const eyebrow = c.personalBest === 'first'
+    ? 'FIRST CATCH'
+    : c.personalBest
+      ? 'PERSONAL BEST'
+      : 'LANDED';
+  ctx.fillStyle = c.personalBest ? 'rgba(222, 190, 110, 1)' : 'rgba(200, 168, 92, 0.9)';
   ctx.font = '600 30px system-ui, -apple-system, sans-serif';
-  ctx.fillText('L A N D E D', cx, 830);
+  ctx.fillText(eyebrow.split('').join(' '), cx, 830);
 
   ctx.fillStyle = '#e9eef3';
   ctx.font = '600 92px Georgia, "Times New Roman", serif';
