@@ -4,6 +4,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { IosInstallHint } from "@/components/pwa/IosInstallHint";
 import { OfflineStatus } from "@/components/pwa/OfflineStatus";
 
 type SplashStage = "primary" | "secondary";
@@ -79,6 +80,7 @@ export function SplashGate() {
               </a>
             </span>
             <OfflineStatus />
+            <IosInstallHint />
           </span>
           <button type="button" className="splash-hint" aria-label="Enter the pond" onClick={advance}>
             Tap to start

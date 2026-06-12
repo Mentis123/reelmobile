@@ -542,6 +542,9 @@ export const TUNING = {
     reelTap: [12],
     lineSnap: [80],
     catch: [10, 30, 10, 30, 60],
+    // A personal best deserves a longer, celebratory pattern than a plain
+    // catch — three rising pulses into a held one.
+    personalBest: [15, 40, 15, 40, 15, 40, 110],
     missed: [10],
     escape: [15, 15],
     fishSurge: [25, 35, 20],
@@ -566,6 +569,10 @@ export const TUNING = {
     // starting at dangerVignetteStartRatio of the effective near-snap warning.
     surgeShakeMs: 280,
     surgeShakeAmplitudeM: 0.05,
+    // A snap is the loudest moment in the game (11_FAILURE_AESTHETICS): the
+    // longer window overdrives the same decay curve (remaining/surgeShakeMs
+    // exceeds 1 at first), so the snap jolt starts harder than any surge.
+    snapShakeMs: 460,
     dangerVignetteStartRatio: 0.9,
     // First-session coaching: the twitch hint dismisses itself after this long
     // so the water never stays captioned.
