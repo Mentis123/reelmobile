@@ -655,3 +655,23 @@ Append after every milestone. Format:
 - Minimal pre-cast `<GearSelect>`: a bottom-left glyph strip (rod glyphs drawn as the cast-curve profile; abstract lure marks), idle-only, persisted. No skeuomorphic chrome, no modal, no labels.
 
 **Guardrails banked in `22_THE_GEAR`:** never a 3rd rod/4th lure, no tiers/XP/currency/unlocks, tension tolerance stays a fixed rod property (NOT adjustable reel-drag, `14_DO_NOT_BUILD` L99), lure/rod stays a flat journal attribute (no completion grid). Default gear = byte-for-byte today's feel, so the iPhone gate judges only the deltas. Feel gates: short-rod range cap + accuracy/snap deltas, loud-lure draw-vs-spook, quiet-lure draw floor.
+
+## eval-and-premium-pass (2026-06-12, agent session — inside the v0.4 gate)
+
+**Shipped:**
+- Full codebase evaluation (`docs/CODEBASE_EVALUATION_AND_RECOMMENDATIONS.md`), then its P0–P2 items: simulation unified on `performance.now()`; dt-normalized damping in the verlet line and fish movement (60Hz ≡ 120Hz feel — was frame-rate dependent on ProMotion); frame-dt clamp; in-place (allocation-free) verlet; store updates throttled out of the 60Hz path; audio suspend/resume/dispose lifecycle; security headers; error boundaries; reduced-motion coverage; 48-test unit suite + GitHub Actions CI (lint/typecheck/unit/build/webkit e2e).
+- `GameClient.tsx` decomposed 3,294 → ~1,100 lines across 11 modules (`GameScene`, `runtime.ts`, scene/*, `GearSelect`, `DebugHud`, `RodReel`, shared types). Mechanical moves only.
+- Premium pass: surge camera shake + harder snap jolt; red danger vignette scaled to the equipped rod's effective snap threshold; tension bar glows by band (gold sweet spot / red danger); personal-best recognition ("Your first catch" / "Your biggest yet" / per-species) on the result card AND the share card, judged against the player's own journal only; rising G4→B4→D5 catch chime; first-session coaching (two diegetic hints, once ever); sound/haptics prefs strip (wordless glyphs, top-right) with a central haptics gate that collapses patterns under reduced motion; journal hero card; result-card staged reveal; pond fade-up on begin; iOS add-to-home-screen hint (earned after a catch, never a popup); gear lure names finally wired into result/story copy.
+
+**Cut:**
+- Procedural night-insect ambience layer — audio is gate-approved territory; not adding layers nobody has heard on a device.
+- Full fixed-timestep simulation loop — dt clamp + damping normalization cover the correctness essentials; the ~10cm constraint-rate residual is pinned by a regression test (`verlet-line.test.ts`) with the tolerance to tighten when the accumulator lands.
+
+**Discovered:**
+- The splash screens double-advanced per tap on Chromium (pointerup + synthesized click both fired the handler) — one tap skipped the credits screen. WebKit masked it. Fixed: onClick is the sole trigger.
+- The credits screens nested links and OfflineStatus's button inside a `<button>` — invalid HTML, hydration warning. Now a tappable div with the pill as the real button.
+- Both e2e specs had been failing on main for weeks (stale v0.3.1 assertions; pre-hydration tap flake) — nothing was running them. They now pin to buildInfo/checklists and pass.
+
+**Next:**
+- The human iPhone gate on the whole stack (v0.4-far-water + all of the above): tap-cadence reel feel, surge-shake amplitude, vignette onset, chime, coaching copy — all in TUNING, all awaiting thumbs.
+- Lighthouse run on a production deploy; record against 07_PERFORMANCE_BUDGET.

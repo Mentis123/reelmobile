@@ -6,8 +6,13 @@ const SPECIES_LABELS: Record<string, string> = {
   ...SPECIES_STORY_LABELS
 };
 
+// Gear-era lures (22_THE_GEAR) plus the pre-gear 'default' kept for catches
+// already sitting in players' journals.
 const LURE_LABELS: Record<string, string> = {
-  default: 'moss-green lure'
+  default: 'moss-green lure',
+  natural: 'natural lure',
+  popper: 'popper',
+  sinker: 'sinker'
 };
 
 export function generateStory(catchEntry: Catch): string {

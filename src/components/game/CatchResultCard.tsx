@@ -13,8 +13,13 @@ import {
 } from '@/game/fish/trophy';
 import { shareCatch } from '@/game/share/shareCatch';
 
+// Gear-era lures (22_THE_GEAR) plus the pre-gear 'default' kept for catches
+// already sitting in players' journals.
 const LURE_LABELS: Record<string, string> = {
-  default: 'moss-green lure'
+  default: 'moss-green lure',
+  natural: 'natural lure',
+  popper: 'popper',
+  sinker: 'sinker'
 };
 
 function isKnownSpecies(species: string): species is SpeciesId {
