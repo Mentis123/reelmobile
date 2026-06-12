@@ -152,6 +152,9 @@ export function updateFight(runtime: Runtime, dt: number, onResult: SceneProps['
   if (runtime.tension > effLineSnap) {
     audio.lineSnap();
     vibrate(TUNING.haptics.lineSnap);
+    // The snap kicks the camera harder and longer than any surge (the window
+    // overdrives the surge decay curve — see TUNING.ui.snapShakeMs).
+    runtime.surgeShakeUntil = now + TUNING.ui.snapShakeMs;
     onResult('snap', runtime.state.peakTension, runtime.state.nearSnaps, runtime.state.hookedAt);
     return;
   }

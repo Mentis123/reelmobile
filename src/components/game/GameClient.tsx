@@ -5,6 +5,7 @@ import { Canvas } from '@react-three/fiber';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { IosInstallHint } from '@/components/pwa/IosInstallHint';
 import { OfflineStatus } from '@/components/pwa/OfflineStatus';
 import { ProceduralAudio } from '@/game/audio/procedural';
 import { type FishCueKind } from '@/game/fish/species';
@@ -350,7 +351,7 @@ export function GameClient() {
       sessionStore.recordCatch(catchEntry);
       track({ type: 'catch', catch: catchEntry });
       audio.current.catchChime();
-      vibrate(TUNING.haptics.catch);
+      vibrate(personalBest ? TUNING.haptics.personalBest : TUNING.haptics.catch);
     } else {
       const failure: Failure = {
         at: Date.now(),
@@ -994,7 +995,9 @@ export function GameClient() {
             style={{ bottom: `${TUNING.tension.tensionSafeHold * 100}%` }}
           />
           <div
-            className="tension-bar-fill"
+            className={`tension-bar-fill${
+              tension > effNearSnapThreshold ? ' danger' : tension >= TUNING.tension.tensionSweetSpotMin ? ' sweet' : ''
+            }`}
             style={{ height: `${Math.min(1, Math.max(0, tension)) * 100}%` }}
           />
         </div>
@@ -1102,6 +1105,7 @@ export function GameClient() {
               </a>
             </span>
             <OfflineStatus />
+            <IosInstallHint />
           </span>
           <button type="button" className="splash-hint" aria-label="Enter the pond" onClick={begin}>
             Tap to start

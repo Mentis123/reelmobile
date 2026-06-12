@@ -128,8 +128,15 @@ export class ProceduralAudio {
   }
 
   catchChime() {
-    this.tone(392, 392, TUNING.audio.catchMs, 'sine', TUNING.audio.sfxGain * 0.45);
-    this.tone(494, 494, TUNING.audio.catchMs, 'sine', TUNING.audio.sfxGain * 0.32);
+    // Rising G4 -> B4 -> D5 arpeggio (was two simultaneous notes): the win
+    // resolves upward, in step with the result card's staged reveal.
+    this.tone(392, 392, TUNING.audio.catchMs, 'sine', TUNING.audio.sfxGain * 0.42);
+    window.setTimeout(() => {
+      this.tone(494, 494, TUNING.audio.catchMs, 'sine', TUNING.audio.sfxGain * 0.34);
+    }, 90);
+    window.setTimeout(() => {
+      this.tone(587, 587, TUNING.audio.catchMs * 1.4, 'sine', TUNING.audio.sfxGain * 0.3);
+    }, 185);
   }
 
   escapeSplash() {

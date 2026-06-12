@@ -1540,3 +1540,50 @@ code {
   font-size: 0.85rem;
   color: rgba(200, 196, 178, 0.75);
 }
+
+/* Tension bar zone glow: a felt answer to "am I in the good band?" without
+   reading numbers — gold breathes in the sweet spot, red burns near the snap. */
+.tension-bar-fill.sweet {
+  box-shadow: 0 0 12px rgba(232, 200, 120, 0.55);
+}
+
+.tension-bar-fill.danger {
+  box-shadow: 0 0 16px rgba(200, 72, 72, 0.7);
+}
+
+/* iOS install hint: one quiet line on the credits card, earned after a catch. */
+.install-hint {
+  margin: 10px 0 0;
+  color: rgba(200, 196, 178, 0.62);
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+}
+
+.install-hint b {
+  color: rgba(200, 196, 178, 0.85);
+  font-weight: 700;
+}
+
+/* Journal pages ease in rather than popping. */
+.journal,
+.catch-detail {
+  animation: page-fade-in 360ms ease-out both;
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .journal,
+  .catch-detail {
+    animation: none;
+  }
+}
